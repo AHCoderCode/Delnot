@@ -36,14 +36,14 @@ describe("time and route calculations", () => {
 
 describe("safe local persistence", () => {
   it("uses safe defaults for damaged save data", () => {
-    expect(parseSave("{broken").unlocked).toEqual(["lab"]);
+    expect(parseSave("{broken").unlocked).toEqual(["line"]);
     expect(normalizeSave(null).version).toBe(1);
   });
   it("filters invalid courses and unsafe timing values", () => {
-    const save = normalizeSave({ unlocked: ["lab", "script", "heights"], best: { lab: 12000, heights: -5, descent: Infinity }, collected: ["lab:one", 5] });
-    expect(save.unlocked).toEqual(["lab", "heights"]);
-    expect(save.best).toEqual({ lab: 12000 });
-    expect(save.collected).toEqual(["lab:one"]);
+    const save = normalizeSave({ unlocked: ["line", "script", "heights"], best: { line: 12000, lab: 33000 }, collected: ["line:one", 5] });
+    expect(save.unlocked).toEqual(["line"]);
+    expect(save.best).toEqual({ line: 12000 });
+    expect(save.collected).toEqual(["line:one"]);
   });
   it("clamps settings to supported ranges", () => {
     const settings = normalizeSettings({ sensitivity: 99, fov: 10, quality: "ultra", masterVolume: -2, cameraEffects: false });

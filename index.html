@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111314" />
+    <meta name="theme-color" content="#dce8ec" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -11,8 +11,8 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
-    <meta name="description" content="Concrete Velocity — a first-person parkour time trial through monumental brutalist architecture." />
-    <title>CONCRETE VELOCITY — First-Person Parkour</title>
+    <meta name="description" content="Concrete Velocity — one calm, continuous 18-kilometre first-person parkour course with checkpoints and wall-jumping." />
+    <title>CONCRETE VELOCITY — The Long Line</title>
   </head>
   <body>
     <div id="app">
@@ -21,13 +21,12 @@
       <div class="top-brand" aria-hidden="true"><span>CV / 001</span><span>CONCRETE VELOCITY</span><span>FIELD TEST — 26.10</span></div>
       <main id="main-menu" class="menu-screen">
         <section class="hero-panel">
-          <div class="eyebrow"><span class="status-dot"></span> MOVEMENT STUDY / NO. 01</div>
+          <div class="eyebrow"><span class="status-dot"></span> ONE CONTINUOUS COURSE / 18 KM</div>
           <h1>CONCRETE<br /><span>VELOCITY</span></h1>
-          <p class="hero-copy">Find the line. Keep your momentum.<br />Make the architecture move.</p>
-          <div class="hero-meta"><span>FIRST-PERSON TRAVERSAL</span><span>01—03 / COURSES</span></div>
+          <p class="hero-copy">One long first-person run.<br />Calm daylight. Clean movement. Harder as you go.</p>
+          <div class="hero-meta"><span>FIRST-PERSON TRAVERSAL</span><span>ONE COURSE / NO LEVELS</span></div>
           <div class="menu-actions">
             <button id="start-button" class="button button-primary"><span>START RUN</span><span aria-hidden="true">↗</span></button>
-            <button id="practice-button" class="button button-secondary">MOVEMENT LAB</button>
           </div>
           <div class="menu-utility">
             <button id="settings-button" class="text-button">SETTINGS</button>
@@ -38,11 +37,11 @@
           <p id="touch-note" class="touch-note" hidden>Touch controls are available during runs. Landscape mode is recommended.</p>
         </section>
         <aside class="course-panel">
-          <div class="panel-heading"><span>SELECTED ROUTES</span><span class="panel-count">COURSE / 03</span></div>
+          <div class="panel-heading"><span>THE CONTINUOUS ROUTE</span><span class="panel-count">01 / 01</span></div>
           <div id="course-list" class="course-list"></div>
-          <div class="course-footer"><span>LOCAL TIME TRIALS</span><span>NO CLOUD SAVE</span></div>
+          <div class="course-footer"><span>CHECKPOINTS ENABLED</span><span>DIFFICULTY BUILDS OVER DISTANCE</span></div>
         </aside>
-        <div class="menu-footer"><span>BUILT FOR MOMENTUM</span><span>WASD <i>+</i> MOUSE</span><span>WEBGL / DESKTOP</span></div>
+        <div class="menu-footer"><span>BUILT FOR MOMENTUM</span><span>WASD <i>+</i> MOUSE</span><span>DESKTOP + MOBILE</span></div>
       </main>
 
       <section id="hud" class="hud" hidden aria-live="off">
@@ -75,22 +74,22 @@
           <div class="modal-actions">
             <button id="resume-button" class="button button-primary"><span>RESUME RUN</span><span>↗</span></button>
             <button id="restart-checkpoint-button" class="button button-secondary">RESTART CHECKPOINT</button>
-            <button id="restart-course-button" class="button button-secondary">RESTART COURSE</button>
+            <button id="restart-course-button" class="button button-secondary">RESTART ROUTE</button>
             <button id="pause-settings-button" class="button button-quiet">SETTINGS</button>
             <button id="return-menu-button" class="button button-quiet">RETURN TO MENU</button>
           </div>
-          <div class="modal-foot">ESC TO RESUME / POINTER LOCK REQUIRED</div>
+          <div class="modal-foot">ESC OR PAUSE TO RESUME</div>
         </div>
       </section>
 
       <section id="finish-overlay" class="modal-screen" hidden>
         <div class="modal-card finish-card">
-          <div class="eyebrow"><span class="status-dot"></span> ROUTE COMPLETE / VERIFIED</div>
+          <div class="eyebrow"><span class="status-dot"></span> ROUTE COMPLETE</div>
           <h2>LINE<br /><span>ACQUIRED.</span></h2>
           <div class="result-time"><span>FINAL TIME</span><strong id="finish-time">00:00.00</strong></div>
           <div class="result-grid"><div><span>MEDAL</span><strong id="finish-medal">BRONZE</strong></div><div><span>PERSONAL BEST</span><strong id="finish-best">—:—</strong></div><div><span>CHECKPOINTS</span><strong id="finish-checkpoints">0 / 0</strong></div><div><span>COLLECTED</span><strong id="finish-collectibles">0 / 0</strong></div></div>
           <p id="finish-message" class="modal-copy">The course is complete.</p>
-          <div class="modal-actions"><button id="replay-button" class="button button-primary"><span>RUN IT AGAIN</span><span>↗</span></button><button id="finish-menu-button" class="button button-secondary">COURSE SELECT</button></div>
+          <div class="modal-actions"><button id="replay-button" class="button button-primary"><span>RUN IT AGAIN</span><span>↗</span></button><button id="finish-menu-button" class="button button-secondary">MAIN MENU</button></div>
           <div class="modal-foot">PERSONAL RECORDS ARE STORED ON THIS DEVICE</div>
         </div>
       </section>

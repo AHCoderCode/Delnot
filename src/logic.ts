@@ -1,4 +1,4 @@
-export type CourseId = "lab" | "heights" | "descent" | "practice";
+export type CourseId = "line";
 export type Medal = "PLATINUM" | "GOLD" | "SILVER" | "BRONZE" | "PRACTICE";
 
 export interface SaveData {
@@ -29,10 +29,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
 };
 
 export const DEFAULT_SAVE: SaveData = {
-  version: 1, unlocked: ["lab"], best: {}, medals: {}, collected: []
+  version: 1, unlocked: ["line"], best: {}, medals: {}, collected: []
 };
 
-const COURSE_IDS: CourseId[] = ["lab", "heights", "descent", "practice"];
+const COURSE_IDS: CourseId[] = ["line"];
 const MEDALS: Medal[] = ["PLATINUM", "GOLD", "SILVER", "BRONZE", "PRACTICE"];
 const QUALITY = ["low", "medium", "high", "ultra"] as const;
 
@@ -72,11 +72,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function normalizeSave(value: unknown): SaveData {
-  const output: SaveData = { version: 1, unlocked: ["lab"], best: {}, medals: {}, collected: [] };
+  const output: SaveData = { version: 1, unlocked: ["line"], best: {}, medals: {}, collected: [] };
   if (!isRecord(value)) return output;
   if (Array.isArray(value.unlocked)) {
     const unlocked = value.unlocked.filter((id): id is CourseId => typeof id === "string" && COURSE_IDS.includes(id as CourseId));
-    output.unlocked = Array.from(new Set(["lab" as CourseId, ...unlocked]));
+    output.unlocked = Array.from(new Set(["line" as CourseId, ...unlocked]));
   }
   if (isRecord(value.best)) {
     for (const id of COURSE_IDS) {

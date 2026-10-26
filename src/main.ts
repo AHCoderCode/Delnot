@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { DEFAULT_SETTINGS, formatTime, medalForTime, normalizeJoystick, parseSave, parseSettings, progressBetween, type CourseId, type GameSettings, type Medal, type SaveData } from "./logic";
+import { generateLongCourse, type CheckpointSpec, type CourseSpec, type PlatformSpec, type TokenSpec } from "./course";
 import "./style.css";
 
 type MaterialKey = "concrete" | "light" | "dark" | "charcoal" | "steel" | "orange" | "cyan" | "white";
@@ -8,195 +9,13 @@ interface Collider {
   minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number;
   kind: ColliderKind;
 }
-interface PlatformSpec { x: number; top: number; z: number; width: number; depth: number; }
-interface SolidSpec { x: number; y: number; z: number; width: number; height: number; depth: number; kind: ColliderKind; }
-interface CheckpointSpec { x: number; top: number; z: number; }
-interface TokenSpec { id: string; x: number; top: number; z: number; }
-interface HintSpec { z: number; text: string; }
-interface CourseSpec {
-  id: CourseId; number: string; title: string; label: string; description: string; difficulty: string;
-  spawn: { x: number; top: number; z: number }; startLineZ: number; finishZ: number; finishTop: number;
-  platforms: PlatformSpec[]; walls: SolidSpec[]; obstacles: SolidSpec[];
-  checkpoints: CheckpointSpec[]; tokens: TokenSpec[]; hints: HintSpec[];
-  goldTime: number; silverTime: number; fallLimit: number;
-}
 interface CheckpointRuntime { spec: CheckpointSpec; ring: THREE.Mesh; activated: boolean; }
 interface TokenRuntime { spec: TokenSpec; mesh: THREE.Mesh; collected: boolean; }
 interface WallContact { collider: Collider; normal: number; }
 interface VaultMotion { from: THREE.Vector3; to: THREE.Vector3; direction: THREE.Vector3; time: number; duration: number; }
 type InputCode = string;
 
-const COURSES: CourseSpec[] = [
-  {
-    id: "lab", number: "01", title: "MOVEMENT LABORATORY", label: "STRATA / 01",
-    description: "Build speed. Learn the line. Master the fundamentals.",
-    difficulty: "FOUNDATION", spawn: { x: 0, top: 0, z: 10 }, startLineZ: 7.5, finishZ: -94, finishTop: 1.15,
-    goldTime: 80000, silverTime: 125000, fallLimit: -16,
-    platforms: [
-      { x: 0, top: 0, z: 5, width: 12, depth: 14 },
-      { x: 0, top: 0, z: -6, width: 4.2, depth: 4.6 },
-      { x: -1.8, top: 0.55, z: -13, width: 4, depth: 4.2 },
-      { x: 1.2, top: 0.95, z: -20, width: 4.2, depth: 4 },
-      { x: 1.2, top: 0.95, z: -28, width: 5.2, depth: 9 },
-      { x: 0, top: 1, z: -39, width: 5.5, depth: 5 },
-      { x: 0, top: 1, z: -47, width: 5, depth: 4 },
-      { x: -1.5, top: 0.9, z: -55, width: 4.2, depth: 5 },
-      { x: 0, top: 1.2, z: -63, width: 6.5, depth: 7 },
-      { x: 0, top: 1.2, z: -73, width: 4.2, depth: 4 },
-      { x: 2, top: 1.55, z: -81, width: 4, depth: 4 },
-      { x: 0, top: 1.15, z: -90, width: 7, depth: 9 }
-    ],
-    walls: [
-      { x: 3, y: 3, z: -46, width: 0.55, height: 4, depth: 12, kind: "wall" },
-      { x: -3.5, y: 2.8, z: -46, width: 0.45, height: 3.6, depth: 10, kind: "wall" }
-    ],
-    obstacles: [
-      { x: 1.2, y: 2.22, z: -27, width: 4.85, height: 0.54, depth: 0.45, kind: "beam" },
-      { x: 0, y: 1.6, z: -62, width: 4.9, height: 0.9, depth: 0.48, kind: "vault" }
-    ],
-    checkpoints: [
-      { x: -1.5, top: 0.9, z: -55 },
-      { x: 0, top: 1.2, z: -63 }
-    ],
-    tokens: [
-      { id: "edge", x: 0, top: 0, z: -6 },
-      { id: "line", x: 1.2, top: 0.95, z: -23 },
-      { id: "flow", x: -1.5, top: 0.9, z: -55 },
-      { id: "summit", x: 0, top: 1.15, z: -89 }
-    ],
-    hints: [
-      { z: 7, text: "MOVE THROUGH THE GATE TO START THE CLOCK." },
-      { z: -2, text: "JUMP / SPACE — BUFFER A JUMP JUST BEFORE AN EDGE." },
-      { z: -10, text: "BUILD SPEED WITH SHIFT BEFORE LONGER GAPS." },
-      { z: -23, text: "SLIDE / C OR CTRL — PASS UNDER THE LOW CONCRETE BEAM." },
-      { z: -36, text: "WALL-RUN / JUMP BESIDE A WALL WHILE MOVING FORWARD." },
-      { z: -57, text: "VAULT / PRESS E NEAR THE LOW BARRIER." },
-      { z: -72, text: "CHECKPOINTS SAVE YOUR RESPawn POSITION FOR THIS RUN." }
-    ]
-  },
-  {
-    id: "heights", number: "02", title: "CONCRETE HEIGHTS", label: "VERTICAL / 02",
-    description: "Elevated bridges, narrow landings, and sustained momentum.",
-    difficulty: "ADVANCED", spawn: { x: 0, top: 0, z: 10 }, startLineZ: 7.5, finishZ: -99, finishTop: 4.2,
-    goldTime: 112000, silverTime: 172000, fallLimit: -14,
-    platforms: [
-      { x: 0, top: 0, z: 5, width: 12, depth: 14 },
-      { x: 0, top: 0, z: -6, width: 4.5, depth: 4.5 },
-      { x: 1.5, top: 0.45, z: -13, width: 4, depth: 4 },
-      { x: -1.2, top: 0.95, z: -20, width: 4.2, depth: 4 },
-      { x: 1.5, top: 1.4, z: -27, width: 4.2, depth: 4 },
-      { x: 0, top: 1.8, z: -34, width: 5, depth: 5 },
-      { x: 0, top: 2.1, z: -42, width: 5.5, depth: 5 },
-      { x: -1.6, top: 2.2, z: -51, width: 4.5, depth: 4 },
-      { x: 1.4, top: 2.6, z: -59, width: 4.3, depth: 4 },
-      { x: -0.5, top: 3, z: -67, width: 4.5, depth: 4 },
-      { x: 0, top: 3.4, z: -75, width: 6, depth: 8 },
-      { x: 1.5, top: 3.8, z: -86, width: 4.2, depth: 4 },
-      { x: 0, top: 4.2, z: -95, width: 7, depth: 9 }
-    ],
-    walls: [
-      { x: 3, y: 4.6, z: -42, width: 0.55, height: 4.8, depth: 12, kind: "wall" },
-      { x: -3.2, y: 4.5, z: -43, width: 0.45, height: 4.6, depth: 10, kind: "wall" }
-    ],
-    obstacles: [
-      { x: 0, y: 4.12, z: -74, width: 5.7, height: 0.55, depth: 0.45, kind: "beam" }
-    ],
-    checkpoints: [
-      { x: 0, top: 1.8, z: -34 },
-      { x: -1.6, top: 2.2, z: -51 },
-      { x: 0, top: 3.4, z: -75 }
-    ],
-    tokens: [
-      { id: "ascent", x: 1.5, top: 1.4, z: -27 },
-      { id: "span", x: -1.6, top: 2.2, z: -51 },
-      { id: "crown", x: 0, top: 4.2, z: -94 }
-    ],
-    hints: [
-      { z: 7, text: "THE CLOCK STARTS WHEN YOU CROSS THE ENTRY GATE." },
-      { z: -10, text: "LANDING HEIGHTS CHANGE. RELEASE FORWARD INPUT TO CORRECT MID-AIR." },
-      { z: -35, text: "CHECKPOINT REACHED SOON — KEEP YOUR MOMENTUM." },
-      { z: -39, text: "THE RIGHT WALL IS RUNNABLE. JUMP INTO IT WHILE MOVING FORWARD." },
-      { z: -70, text: "USE THE OVERHEAD BEAM AS A SLIDE LINE, NOT A STOPPING POINT." }
-    ]
-  },
-  {
-    id: "descent", number: "03", title: "INDUSTRIAL DESCENT", label: "GRAVITY / 03",
-    description: "A vertical service shaft. Drop cleanly, then recover.",
-    difficulty: "EXPERT", spawn: { x: 0, top: 7, z: 10 }, startLineZ: 7.5, finishZ: -71, finishTop: -5.5,
-    goldTime: 95000, silverTime: 150000, fallLimit: -14,
-    platforms: [
-      { x: 0, top: 7, z: 5, width: 12, depth: 14 },
-      { x: 0, top: 6, z: -5, width: 4.5, depth: 4.2 },
-      { x: 1.8, top: 5, z: -12, width: 4, depth: 4 },
-      { x: -1.2, top: 3.8, z: -19, width: 4, depth: 4 },
-      { x: 1.2, top: 2.3, z: -26, width: 4.5, depth: 4.5 },
-      { x: 0, top: 1, z: -33, width: 5.5, depth: 5 },
-      { x: 0, top: -0.1, z: -40, width: 3.8, depth: 3.8 },
-      { x: -1.8, top: -1.4, z: -47, width: 4, depth: 4 },
-      { x: 1.5, top: -2.7, z: -54, width: 4.2, depth: 4.2 },
-      { x: 0, top: -4, z: -61, width: 6, depth: 6 },
-      { x: 0, top: -5.5, z: -69, width: 5.5, depth: 8 }
-    ],
-    walls: [
-      { x: 3, y: 2.9, z: -33, width: 0.55, height: 4, depth: 12, kind: "wall" },
-      { x: -3.3, y: 2.7, z: -34, width: 0.45, height: 3.6, depth: 10, kind: "wall" },
-      { x: 3.2, y: -3.2, z: -59, width: 0.55, height: 4.6, depth: 16, kind: "wall" }
-    ],
-    obstacles: [
-      { x: 0, y: 2.05, z: -33, width: 4.9, height: 0.5, depth: 0.45, kind: "beam" }
-    ],
-    checkpoints: [
-      { x: 0, top: 1, z: -33 },
-      { x: 0, top: -4, z: -61 }
-    ],
-    tokens: [
-      { id: "drop", x: 0, top: 6, z: -5 },
-      { id: "shaft", x: -1.8, top: -1.4, z: -47 },
-      { id: "exit", x: 0, top: -5.5, z: -69 }
-    ],
-    hints: [
-      { z: 7, text: "DESCENT TEST: LAND ON THE NEXT PLATFORM BEFORE COMMITTING." },
-      { z: -9, text: "A SMALL DROP CAN BE FASTER THAN A JUMP — KEEP THE LANDING CENTERED." },
-      { z: -30, text: "CHECKPOINT AHEAD. THE SHAFT WALL CAN CARRY YOUR MOMENTUM." },
-      { z: -47, text: "LOWER PLATFORMS ARE NARROWER. USE AIR CONTROL TO ALIGN." }
-    ]
-  },
-  {
-    id: "practice", number: "∞", title: "MOVEMENT LAB", label: "OPEN / 00",
-    description: "An open practice floor with room to test every move.",
-    difficulty: "FREE PRACTICE", spawn: { x: 0, top: 0, z: 10 }, startLineZ: 7.5, finishZ: -78, finishTop: 0,
-    goldTime: 999999, silverTime: 999999, fallLimit: -16,
-    platforms: [
-      { x: 0, top: 0, z: -33, width: 24, depth: 92 },
-      { x: 0, top: 0, z: 14, width: 24, depth: 10 },
-      { x: 0, top: 0, z: -8, width: 12, depth: 3 },
-      { x: 0, top: 0, z: -18, width: 9, depth: 3 },
-      { x: -4, top: 0, z: -28, width: 3, depth: 3 },
-      { x: 4, top: 0, z: -28, width: 3, depth: 3 },
-      { x: 0, top: 0, z: -44, width: 9, depth: 3 },
-      { x: 0, top: 0, z: -55, width: 9, depth: 3 },
-      { x: 0, top: 0, z: -70, width: 18, depth: 10 }
-    ],
-    walls: [
-      { x: 5.5, y: 2.2, z: -29, width: 0.55, height: 4.4, depth: 12, kind: "wall" },
-      { x: -5.5, y: 2.2, z: -29, width: 0.55, height: 4.4, depth: 12, kind: "wall" }
-    ],
-    obstacles: [
-      { x: 0, y: 2.1, z: -8, width: 10, height: 0.5, depth: 0.45, kind: "beam" },
-      { x: 0, y: 0.65, z: -54, width: 5.4, height: 1.3, depth: 0.5, kind: "vault" }
-    ],
-    checkpoints: [{ x: 0, top: 0, z: -44 }],
-    tokens: [
-      { id: "practice-one", x: -4, top: 0, z: -28 },
-      { id: "practice-two", x: 4, top: 0, z: -28 }
-    ],
-    hints: [
-      { z: 7, text: "OPEN PRACTICE — NO COURSE MEDAL. EXPERIMENT WITH MOMENTUM." },
-      { z: -3, text: "THE LOW BEAM CAN BE SLID UNDER. KEEP THE CAMERA CLEAR." },
-      { z: -22, text: "USE A WALL-RUN TO PRESERVE SPEED ACROSS A GAP." }
-    ]
-  }
-];
+const COURSES: CourseSpec[] = [generateLongCourse()];
 
 const app = document.getElementById("app");
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement | null;
@@ -220,8 +39,8 @@ function courseById(id: CourseId): CourseSpec {
 
 const saveData: SaveData = parseSave(readLocal("concrete-velocity.save.v1"));
 let settings: GameSettings = parseSettings(readLocal("concrete-velocity.settings.v1"));
-let selectedCourse: CourseId = "lab";
-let currentCourse: CourseSpec = courseById("lab");
+let selectedCourse: CourseId = "line";
+let currentCourse: CourseSpec = courseById("line");
 let isMenu = true;
 let isPlaying = false;
 let isPaused = false;
@@ -239,6 +58,7 @@ const visitedHints = new Set<number>();
 const keys = new Set<InputCode>();
 const worldRoot = new THREE.Group();
 const colliders: Collider[] = [];
+const platformVisualSpecs: PlatformSpec[] = [];
 const checkpointObjects: CheckpointRuntime[] = [];
 const tokenObjects: TokenRuntime[] = [];
 const materialCache = new Map<MaterialKey, THREE.MeshStandardMaterial>();
@@ -278,11 +98,11 @@ const FIXED_STEP = 1 / 120;
 let physicsAccumulator = 0;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color("#bdbbb5");
-scene.fog = new THREE.Fog("#bdbbb5", 34, 145);
+scene.background = new THREE.Color("#dce8ec");
+scene.fog = new THREE.Fog("#dce8ec", 58, 205);
 scene.add(worldRoot);
-scene.add(new THREE.HemisphereLight("#ebe8df", "#555b5a", 2.05));
-const sun = new THREE.DirectionalLight("#fff1dc", 3.25);
+scene.add(new THREE.HemisphereLight("#f3f8fa", "#9cacb0", 1.75));
+const sun = new THREE.DirectionalLight("#fffaf0", 2.2);
 sun.position.set(-15, 28, 16);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1536, 1536);
@@ -292,16 +112,13 @@ sun.shadow.camera.top = 50;
 sun.shadow.camera.bottom = -50;
 sun.shadow.bias = -0.00015;
 scene.add(sun);
-const rimLight = new THREE.DirectionalLight("#76d9d0", 0.8);
-rimLight.position.set(15, 7, -55);
-scene.add(rimLight);
 
 let renderer: THREE.WebGLRenderer;
 try {
   renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: true, alpha: false, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMappingExposure = 1;
 } catch (error) {
   el("error-panel").hidden = false;
   el("error-message").textContent = "A WebGL 2 renderer could not be initialized. Try a desktop browser with hardware acceleration enabled. Details: " + (error instanceof Error ? error.message : "unknown graphics error");
@@ -412,14 +229,14 @@ function materialFor(key: MaterialKey): THREE.MeshStandardMaterial {
   const cached = materialCache.get(key);
   if (cached) return cached;
   const palette: Record<MaterialKey, { color: string; roughness: number; metalness: number; emissive?: string; emissiveIntensity?: number; map?: boolean }> = {
-    concrete: { color: "#bab7af", roughness: 0.94, metalness: 0.03, map: true },
-    light: { color: "#e0ddd5", roughness: 0.83, metalness: 0.06, map: true },
-    dark: { color: "#5c6261", roughness: 0.91, metalness: 0.08, map: true },
-    charcoal: { color: "#252b2c", roughness: 0.79, metalness: 0.16 },
-    steel: { color: "#818987", roughness: 0.42, metalness: 0.62 },
-    orange: { color: "#fa7649", roughness: 0.38, metalness: 0.18, emissive: "#df4e20", emissiveIntensity: 1.55 },
-    cyan: { color: "#8df4e2", roughness: 0.3, metalness: 0.2, emissive: "#31cbb4", emissiveIntensity: 1.2 },
-    white: { color: "#f5f1e9", roughness: 0.72, metalness: 0.04 }
+    concrete: { color: "#d5dcd9", roughness: 0.92, metalness: 0.01, map: true },
+    light: { color: "#eef3f1", roughness: 0.86, metalness: 0.01, map: true },
+    dark: { color: "#aebdc0", roughness: 0.9, metalness: 0.02, map: true },
+    charcoal: { color: "#62777d", roughness: 0.84, metalness: 0.04 },
+    steel: { color: "#829da5", roughness: 0.62, metalness: 0.18 },
+    orange: { color: "#c77b63", roughness: 0.68, metalness: 0.02, emissive: "#5b3428", emissiveIntensity: 0.12 },
+    cyan: { color: "#79bdb3", roughness: 0.56, metalness: 0.03, emissive: "#244e49", emissiveIntensity: 0.12 },
+    white: { color: "#fffdf7", roughness: 0.78, metalness: 0.01 }
   };
   const values = palette[key];
   const material = new THREE.MeshStandardMaterial({
@@ -462,11 +279,48 @@ function addSolidBox(x: number, y: number, z: number, width: number, height: num
 }
 
 function addPlatform(platform: PlatformSpec): void {
-  addSolidBox(platform.x, platform.top - 0.5, platform.z, platform.width, 1, platform.depth, "concrete", "platform");
-  addVisualBox(platform.x, platform.top - 0.04, platform.z, platform.width + 0.08, 0.08, platform.depth + 0.08, "dark", false);
-  const lineZ = platform.z - platform.depth / 2 + 0.34;
-  addVisualBox(platform.x - platform.width * 0.32, platform.top + 0.018, lineZ, 0.07, 0.025, 0.72, "orange", false);
-  addVisualBox(platform.x + platform.width * 0.32, platform.top + 0.018, lineZ, 0.07, 0.025, 0.72, "orange", false);
+  platformVisualSpecs.push(platform);
+  colliders.push({
+    minX: platform.x - platform.width / 2, maxX: platform.x + platform.width / 2,
+    minY: platform.top - 1, maxY: platform.top,
+    minZ: platform.z - platform.depth / 2, maxZ: platform.z + platform.depth / 2,
+    kind: "platform"
+  });
+}
+
+function flushPlatformBatches(): void {
+  if (!platformVisualSpecs.length) return;
+  const cube = boxGeometry(1, 1, 1);
+  const temp = new THREE.Object3D();
+  const addBatch = (key: MaterialKey, transforms: Array<{x:number;y:number;z:number;sx:number;sy:number;sz:number}>): void => {
+    const mesh = new THREE.InstancedMesh(cube, materialFor(key), transforms.length);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    transforms.forEach((item, index) => {
+      temp.position.set(item.x, item.y, item.z);
+      temp.rotation.set(0, 0, 0);
+      temp.scale.set(item.sx, item.sy, item.sz);
+      temp.updateMatrix();
+      mesh.setMatrixAt(index, temp.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+    worldRoot.add(mesh);
+  };
+  const bases: Array<{x:number;y:number;z:number;sx:number;sy:number;sz:number}> = [];
+  const trims: Array<{x:number;y:number;z:number;sx:number;sy:number;sz:number}> = [];
+  const markings: Array<{x:number;y:number;z:number;sx:number;sy:number;sz:number}> = [];
+  for (const p of platformVisualSpecs) {
+    bases.push({ x:p.x, y:p.top - 0.5, z:p.z, sx:p.width, sy:1, sz:p.depth });
+    trims.push({ x:p.x, y:p.top - 0.045, z:p.z, sx:p.width + 0.08, sy:0.09, sz:p.depth + 0.08 });
+    const lineZ = p.z - p.depth / 2 + 0.34;
+    markings.push({ x:p.x - p.width * 0.32, y:p.top + 0.018, z:lineZ, sx:0.055, sy:0.022, sz:0.64 });
+    markings.push({ x:p.x + p.width * 0.32, y:p.top + 0.018, z:lineZ, sx:0.055, sy:0.022, sz:0.64 });
+  }
+  addBatch("concrete", bases);
+  addBatch("dark", trims);
+  addBatch("orange", markings);
 }
 
 function addGate(z: number, floorY: number, finish: boolean): void {
@@ -507,27 +361,17 @@ function addToken(spec: TokenSpec): void {
 }
 
 function addAtmosphere(): void {
-  const length = Math.abs(currentCourse.finishZ) + 32;
-  for (let z = 9, i = 0; z > currentCourse.finishZ - 20; z -= 14, i++) {
-    const side = i % 2 === 0 ? -1 : 1;
-    const heightA = 11 + (i % 3) * 4;
-    const heightB = 14 + (i % 4) * 3;
-    addVisualBox(-10.5, currentCourse.spawn.top + heightA * 0.42, z - 2, 4.4 + (i % 3), heightA, 8.8, i % 2 ? "dark" : "concrete", false);
-    addVisualBox(10.8, currentCourse.spawn.top + heightB * 0.4, z - 6, 5.5 + (i % 4), heightB, 11.5, i % 2 ? "concrete" : "dark", false);
-    addVisualBox(side * 6.5, currentCourse.spawn.top + 7.8 + (i % 2) * 1.7, z - 9, 0.65, 15.6, 5.4, "charcoal", false);
-    if (i % 2 === 0) {
-      addVisualBox(0, currentCourse.spawn.top + 13 + (i % 3), z - 11, 12.8, 0.42, 0.56, "dark", false);
-      addVisualBox(side * 6.1, currentCourse.spawn.top + 13 + (i % 3), z - 11, 0.34, 0.42, 0.62, "orange", false);
-    }
-  }
-  addVisualBox(-length * 0.025, currentCourse.spawn.top - 4.5, currentCourse.finishZ - 18, 62, 1.4, 12, "charcoal", false);
-  for (let i = 0; i < 9; i++) {
-    const z = 4 - i * 11;
-    addVisualBox(-7.1, currentCourse.spawn.top + 2.6, z, 0.23, 5.2, 0.5, "steel", false);
-    addVisualBox(7.1, currentCourse.spawn.top + 2.6, z, 0.23, 5.2, 0.5, "steel", false);
+  const length = Math.abs(currentCourse.finishZ) + 180;
+  addVisualBox(0, -18, currentCourse.finishZ / 2, 220, 0.7, length, "light", false);
+  addVisualBox(-9.5, 1.5, currentCourse.finishZ / 2, 0.2, 3, length, "steel", false);
+  addVisualBox(9.5, 1.5, currentCourse.finishZ / 2, 0.2, 3, length, "steel", false);
+  for (let z = 0, i = 0; z > currentCourse.finishZ - 100; z -= 145, i++) {
+    const heightA = 10 + (i % 5) * 2.2;
+    const heightB = 12 + ((i + 2) % 5) * 2.0;
+    addVisualBox(-18 - (i % 3) * 2.5, heightA / 2 - 0.5, z - 16, 6 + (i % 3) * 1.4, heightA, 23, i % 2 ? "light" : "concrete", false);
+    addVisualBox(18 + ((i + 1) % 3) * 2.5, heightB / 2 - 0.5, z - 74, 6 + ((i + 2) % 3) * 1.5, heightB, 24, i % 3 ? "concrete" : "light", false);
   }
 }
-
 function clearWorld(): void {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
@@ -547,15 +391,16 @@ function clearWorld(): void {
   materials.forEach((material) => material.dispose());
   textures.forEach((texture) => texture.dispose());
   worldRoot.clear();
-  colliders.length = 0; checkpointObjects.length = 0; tokenObjects.length = 0;
+  colliders.length = 0; platformVisualSpecs.length = 0; checkpointObjects.length = 0; tokenObjects.length = 0;
   materialCache.clear(); geometryCache.clear(); concreteTexture = null;
 }
 
 function buildWorld(course: CourseSpec): void {
   clearWorld();
-  scene.fog = new THREE.Fog(course.id === "descent" ? "#a4aaa8" : "#bdbbb5", settings.quality === "low" ? 26 : 36, settings.quality === "low" ? 95 : 155);
-  scene.background = new THREE.Color(course.id === "descent" ? "#9ea6a3" : "#bdbbb5");
+  scene.background = new THREE.Color("#dce8ec");
+  scene.fog = new THREE.Fog("#dce8ec", settings.quality === "low" ? 38 : settings.quality === "medium" ? 48 : 58, settings.quality === "low" ? 120 : settings.quality === "medium" ? 165 : settings.quality === "ultra" ? 240 : 205);
   for (const platform of course.platforms) addPlatform(platform);
+  flushPlatformBatches();
   for (const wall of course.walls) addSolidBox(wall.x, wall.y, wall.z, wall.width, wall.height, wall.depth, "dark", "wall");
   for (const obstacle of course.obstacles) {
     addSolidBox(obstacle.x, obstacle.y, obstacle.z, obstacle.width, obstacle.height, obstacle.depth, obstacle.kind === "beam" ? "charcoal" : "concrete", obstacle.kind);
@@ -587,8 +432,8 @@ function applySettings(): void {
   renderer.shadowMap.type = settings.quality === "ultra" ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
   sun.castShadow = settings.quality !== "low";
   if (scene.fog instanceof THREE.Fog) {
-    scene.fog.near = settings.quality === "low" ? 26 : settings.quality === "medium" ? 32 : 36;
-    scene.fog.far = settings.quality === "low" ? 94 : settings.quality === "medium" ? 122 : settings.quality === "ultra" ? 190 : 155;
+    scene.fog.near = settings.quality === "low" ? 38 : settings.quality === "medium" ? 48 : 58;
+    scene.fog.far = settings.quality === "low" ? 120 : settings.quality === "medium" ? 165 : settings.quality === "ultra" ? 240 : 205;
   }
   audio.setVolumes();
   resizeRenderer();
@@ -614,36 +459,24 @@ function showToast(message: string): void {
 }
 
 function isUnlocked(id: CourseId): boolean {
-  return id === "practice" || saveData.unlocked.includes(id);
+  return id === "line";
 }
 
 function renderCourseList(): void {
   const root = el("course-list");
-  root.innerHTML = COURSES.filter((course) => course.id !== "practice").map((course) => {
-    const locked = !isUnlocked(course.id);
-    const best = saveData.best[course.id];
-    const medal = saveData.medals[course.id];
-    const selected = selectedCourse === course.id;
-    return '<button class="course-option' + (selected ? " selected" : "") + (locked ? " locked" : "") + '" type="button" data-course="' + course.id + '"' + (locked ? ' disabled aria-disabled="true"' : "") + '>' +
-      '<div class="course-option-top"><span>COURSE ' + course.number + '</span><span>' + (locked ? "LOCKED" : course.difficulty) + '</span></div>' +
-      '<strong>' + course.title + '</strong><p>' + course.description + '</p>' +
-      '<div class="course-option-bottom"><span>' + (locked ? "COMPLETE PRIOR COURSE TO UNLOCK" : (best ? "PB " + formatTime(best) : "NO RECORD YET")) + '</span><span>' + (medal ?? "—") + '</span></div>' +
-    '</button>';
-  }).join("");
-  root.querySelectorAll<HTMLButtonElement>("[data-course]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const id = button.dataset.course as CourseId | undefined;
-      if (!id || !isUnlocked(id)) return;
-      selectedCourse = id;
-      renderCourseList();
-      audio.ui();
-    });
-  });
+  root.innerHTML =
+    '<div class="course-option selected" aria-current="true">' +
+      '<div class="course-option-top"><span>ONE CONTINUOUS COURSE</span><span>18,000 M</span></div>' +
+      '<strong>THE LONG LINE</strong>' +
+      '<p>A single first-person parkour route. Gaps widen, landings narrow, and wall-run chains become more demanding as you travel.</p>' +
+      '<div class="course-option-bottom"><span>CHECKPOINTS THROUGHOUT</span><span>20 MIN SPEEDRUN / ~40 MIN CASUAL</span></div>' +
+    '</div>';
 }
 
 function setRunVisibility(): void {
   el("main-menu").hidden = !isMenu;
-  el("hud").hidden = !isPlaying || isPaused || isFinished || !settings.showHud;
+  el("hud").hidden = !isPlaying || isPaused || isFinished || (!settings.showHud && !touchMode);
+  el("hud").classList.toggle("hud-hidden-data", !settings.showHud);
   el("pause-overlay").hidden = !isPaused;
   el("finish-overlay").hidden = !isFinished;
   const touchControls = document.getElementById("touch-controls");
@@ -671,7 +504,7 @@ function resetPlayer(): void {
 
 function startCourse(id: CourseId): void {
   if (!isUnlocked(id)) {
-    showToast("COMPLETE THE PREVIOUS COURSE TO UNLOCK THIS ROUTE.");
+    showToast("THE CONTINUOUS ROUTE IS THE ONLY COURSE.");
     return;
   }
   currentCourse = courseById(id);
@@ -701,7 +534,7 @@ function returnToMenu(): void {
   isMenu = true; isPlaying = false; isPaused = false; isFinished = false; runStarted = false;
   keys.clear(); touchMoveX=0; touchMoveY=0; activeStickPointer=-1; activeLookPointer=-1; vaultMotion = null;
   if (document.pointerLockElement) document.exitPointerLock();
-  selectedCourse = currentCourse.id === "practice" ? "lab" : currentCourse.id;
+  selectedCourse = currentCourse.id;
   renderCourseList();
   setRunVisibility();
   el("info-overlay").hidden = true;
@@ -748,17 +581,15 @@ function finishCourse(): void {
   const previousBest = saveData.best[currentCourse.id];
   const isNewBest = previousBest === undefined || elapsedMs < previousBest;
   if (isNewBest) saveData.best[currentCourse.id] = elapsedMs;
-  const medal: Medal = currentCourse.id === "practice" ? "PRACTICE" : medalForTime(elapsedMs, currentCourse.goldTime, currentCourse.silverTime);
+  const medal: Medal = medalForTime(elapsedMs, currentCourse.goldTime, currentCourse.silverTime);
   saveData.medals[currentCourse.id] = medal;
-  if (currentCourse.id === "lab" && !saveData.unlocked.includes("heights")) saveData.unlocked.push("heights");
-  if (currentCourse.id === "heights" && !saveData.unlocked.includes("descent")) saveData.unlocked.push("descent");
   saveProgress();
   el("finish-time").textContent = formatTime(elapsedMs);
   el("finish-best").textContent = formatTime(saveData.best[currentCourse.id] ?? elapsedMs);
   el("finish-medal").textContent = medal;
   el("finish-checkpoints").textContent = checkpointCount + " / " + currentCourse.checkpoints.length;
   el("finish-collectibles").textContent = collectedThisRun + " / " + currentCourse.tokens.length;
-  el("finish-message").textContent = isNewBest ? "NEW PERSONAL BEST — this result was recorded on this device." : (currentCourse.id === "practice" ? "Practice completed. Try a different line or keep exploring." : "Course completed. Your recorded personal best remains " + formatTime(previousBest ?? elapsedMs) + ".");
+  el("finish-message").textContent = isNewBest ? "NEW PERSONAL BEST — this result was recorded on this device." : "The route is complete. Your recorded personal best remains " + formatTime(previousBest ?? elapsedMs) + ".";
   renderCourseList();
   setRunVisibility();
   if (document.pointerLockElement) document.exitPointerLock();
@@ -918,7 +749,7 @@ function updatePlayer(dt: number): void {
   if (wish.lengthSq() > 1) wish.normalize();
   const hasInput = wish.lengthSq() > 0.001;
   const horizontalSpeed = Math.hypot(player.velocity.x, player.velocity.z);
-  const maxSpeed = player.sliding ? 13.8 : sprinting ? 12.5 : 8.1;
+  const maxSpeed = player.sliding ? 14.2 : sprinting ? 15 : 8.1;
   const acceleration = wasGrounded ? (player.sliding ? 9 : 25) : 7.2;
   if (hasInput) {
     player.velocity.x += (wish.x * maxSpeed - player.velocity.x) * Math.min(1, acceleration * dt);
@@ -1186,9 +1017,9 @@ function openInfo(kind: "controls" | "credits"): void {
     eyebrow.textContent = "PROJECT NOTES / CREDITS";
     title.innerHTML = "ORIGINAL<br /><span>BY DESIGN.</span>";
     content.innerHTML =
-      '<p class="info-paragraph">Concrete Velocity is an original browser parkour study inspired by minimalist brutalist architecture and momentum-based traversal. Its courses, geometry, interface, and procedural audio are original creations.</p>' +
+      '<p class="info-paragraph">Concrete Velocity is an original first-person parkour game with one continuous 18-kilometre route, calm daylight materials, checkpoints, wall-running, wall-jumping, and progressively tighter traversal challenges.</p>' +
       '<div class="credit-list"><div><span>ENGINE</span><strong>THREE.JS / WEBGL 2</strong></div><div><span>TOOLCHAIN</span><strong>TYPESCRIPT + VITE</strong></div><div><span>PHYSICS</span><strong>CUSTOM KINEMATIC CONTROLLER</strong></div><div><span>PROGRESSION</span><strong>LOCAL STORAGE / NO ACCOUNT</strong></div></div>' +
-      '<p class="info-note">No VHOLUME levels, assets, artwork, or music are included. Results are local to this browser and are not online rankings.</p>';
+      '<p class="info-note">There are no separate levels or alternate courses. The world and route are original; personal records are stored locally in this browser.</p>';
   }
   el("info-overlay").hidden = false;
   audio.ui();
@@ -1271,8 +1102,7 @@ function initialize(): void {
   setupTouchControls(); setupPwaInstall();
 
   el("start-button").addEventListener("click", () => startCourse(selectedCourse));
-  el("practice-button").addEventListener("click", () => startCourse("practice"));
-  el("settings-button").addEventListener("click", openSettings);
+    el("settings-button").addEventListener("click", openSettings);
   el("pause-settings-button").addEventListener("click", openSettings);
   el("controls-button").addEventListener("click", () => openInfo("controls"));
   el("credits-button").addEventListener("click", () => openInfo("credits"));
