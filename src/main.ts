@@ -1244,7 +1244,7 @@ function initialize(): void {
   el("finish-menu-button").addEventListener("click", returnToMenu);
   el("settings-overlay").addEventListener("click", (event) => { if (event.target === el("settings-overlay")) closeSettings(); });
   el("info-overlay").addEventListener("click", (event) => { if (event.target === el("info-overlay")) closeInfo(); });
-  canvas.addEventListener("click", () => {
+  gameCanvas.addEventListener("click", () => {
     if (isPlaying && !isFinished && !isPaused && !document.pointerLockElement) {
       try { gameCanvas.requestPointerLock(); } catch { showToast("POINTER LOCK IS NOT AVAILABLE IN THIS BROWSER."); }
     }
@@ -1260,7 +1260,7 @@ function initialize(): void {
     }
   });
   document.addEventListener("mousemove", (event) => {
-    if (!isPlaying || isPaused || isFinished || document.pointerLockElement !== canvas) return;
+    if (!isPlaying || isPaused || isFinished || document.pointerLockElement !== gameCanvas) return;
     yaw -= event.movementX * settings.sensitivity * 0.00165;
     pitch -= event.movementY * settings.sensitivity * 0.00165;
     pitch = THREE.MathUtils.clamp(pitch, -1.43, 1.43);
