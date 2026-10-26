@@ -1,12 +1,19 @@
-export type CourseId = "line";
+export type CourseId = `ch${1 | 2 | 3}-l${1 | 2 | 3 | 4 | 5}`;
 export type Medal = "PLATINUM" | "GOLD" | "SILVER" | "BRONZE" | "PRACTICE";
 
+export interface SavedCheckpoint {
+  x: number; top: number; z: number; index: number; elapsedMs: number; started: boolean;
+}
 export interface SaveData {
-  version: 1;
+  version: 2;
   unlocked: CourseId[];
+  completed: CourseId[];
   best: Partial<Record<CourseId, number>>;
   medals: Partial<Record<CourseId, Medal>>;
   collected: string[];
+  lastCourse: CourseId;
+  selectedCourse: CourseId;
+  checkpoints: Partial<Record<CourseId, SavedCheckpoint>>;
 }
 
 export interface GameSettings {
@@ -28,11 +35,14 @@ export const DEFAULT_SETTINGS: GameSettings = {
   cameraEffects: true, reducedMotion: false, showHud: true
 };
 
+export const COURSE_IDS: CourseId[] = [1,2,3].flatMap((chapter) =>
+  [1,2,3,4,5].map((level) => `ch${chapter}-l${level}` as CourseId)
+);
 export const DEFAULT_SAVE: SaveData = {
-  version: 1, unlocked: ["line"], best: {}, medals: {}, collected: []
+  version: 2, unlocked: ["ch1-l1"], completed: [], best: {}, medals: {}, collected: [],
+  lastCourse: "ch1-l1", selectedCourse: "ch1-l1", checkpoints: {}
 };
 
-const COURSE_IDS: CourseId[] = ["line"];
 const MEDALS: Medal[] = ["PLATINUM", "GOLD", "SILVER", "BRONZE", "PRACTICE"];
 const QUALITY = ["low", "medium", "high", "ultra"] as const;
 
@@ -72,12 +82,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function normalizeSave(value: unknown): SaveData {
-  const output: SaveData = { version: 1, unlocked: ["line"], best: {}, medals: {}, collected: [] };
+  const output: SaveData = {
+    version: 2, unlocked: ["ch1-l1"], completed: [], best: {}, medals: {}, collected: [],
+    lastCourse: "ch1-l1", selectedCourse: "ch1-l1", checkpoints: {}
+  };
   if (!isRecord(value)) return output;
-  if (Array.isArray(value.unlocked)) {
-    const unlocked = value.unlocked.filter((id): id is CourseId => typeof id === "string" && COURSE_IDS.includes(id as CourseId));
-    output.unlocked = Array.from(new Set(["line" as CourseId, ...unlocked]));
-  }
+  const validIds = (candidate: unknown): CourseId[] =>
+    Array.isArray(candidate) ? Array.from(new Set(candidate.filter((id): id is CourseId =>
+      typeof id === "string" && COURSE_IDS.includes(id as CourseId)))) : [];
+  output.completed = validIds(value.completed);
+  const savedUnlocked = validIds(value.unlocked);
+  let furthest = Math.max(0, ...savedUnlocked.map((id) => COURSE_IDS.indexOf(id)));
+  for (const id of output.completed) furthest = Math.max(furthest, COURSE_IDS.indexOf(id) + 1);
+  output.unlocked = COURSE_IDS.slice(0, Math.min(COURSE_IDS.length, furthest + 1));
   if (isRecord(value.best)) {
     for (const id of COURSE_IDS) {
       const time = value.best[id];
@@ -91,8 +108,31 @@ export function normalizeSave(value: unknown): SaveData {
     }
   }
   if (Array.isArray(value.collected)) {
-    output.collected = Array.from(new Set(value.collected.filter((item): item is string => typeof item === "string" && item.length > 0 && item.length < 100).slice(0, 500)));
+    output.collected = Array.from(new Set(value.collected.filter((item): item is string =>
+      typeof item === "string" && item.length > 0 && item.length < 120 && !item.startsWith("line:")
+    ).slice(-3000)));
   }
+  const isCourseId = (candidate: unknown): candidate is CourseId =>
+    typeof candidate === "string" && COURSE_IDS.includes(candidate as CourseId);
+  if (isCourseId(value.lastCourse)) output.lastCourse = value.lastCourse;
+  else if (isCourseId(value.currentCourse)) output.lastCourse = value.currentCourse;
+  if (isCourseId(value.selectedCourse)) output.selectedCourse = value.selectedCourse;
+  else output.selectedCourse = output.lastCourse;
+  if (isRecord(value.checkpoints)) {
+    for (const id of COURSE_IDS) {
+      const cp = value.checkpoints[id];
+      if (!isRecord(cp)) continue;
+      const finite = (key: string): number | null =>
+        typeof cp[key] === "number" && Number.isFinite(cp[key]) ? cp[key] as number : null;
+      const x=finite("x"), top=finite("top"), z=finite("z"), index=finite("index"), elapsedMs=finite("elapsedMs");
+      if (x===null||top===null||z===null||index===null||elapsedMs===null) continue;
+      if (Math.abs(x)>50||top< -20||top>120||z< -20_100||z>100||!Number.isInteger(index)||index<0||index>600||elapsedMs<0||elapsedMs>24*60*60*1000) continue;
+      output.checkpoints[id]={x,top,z,index,elapsedMs,started:typeof cp.started==="boolean"?cp.started:elapsedMs>0};
+    }
+  }
+  for (const id of COURSE_IDS) if (!output.unlocked.includes(id)) delete output.checkpoints[id];
+  if (!output.unlocked.includes(output.lastCourse)) output.lastCourse=output.unlocked[output.unlocked.length-1]??"ch1-l1";
+  if (!output.unlocked.includes(output.selectedCourse)) output.selectedCourse=output.lastCourse;
   return output;
 }
 

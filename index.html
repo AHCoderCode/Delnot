@@ -11,8 +11,8 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
-    <meta name="description" content="Concrete Velocity — one calm, continuous 18-kilometre first-person parkour course with checkpoints and wall-jumping." />
-    <title>CONCRETE VELOCITY — The Long Line</title>
+    <meta name="description" content="Concrete Velocity — a calm first-person parkour campaign with 3 chapters, 15 levels, checkpoints, wall-running, wall-jumping, and three boss runs." />
+    <title>CONCRETE VELOCITY — Campaign</title>
   </head>
   <body>
     <div id="app">
@@ -21,12 +21,14 @@
       <div class="top-brand" aria-hidden="true"><span>CV / 001</span><span>CONCRETE VELOCITY</span><span>FIELD TEST — 26.10</span></div>
       <main id="main-menu" class="menu-screen">
         <section class="hero-panel">
-          <div class="eyebrow"><span class="status-dot"></span> ONE CONTINUOUS COURSE / 18 KM</div>
+          <div class="eyebrow"><span class="status-dot"></span> CAMPAIGN MODE / 3 CHAPTERS</div>
           <h1>CONCRETE<br /><span>VELOCITY</span></h1>
-          <p class="hero-copy">One long first-person run.<br />Calm daylight. Clean movement. Harder as you go.</p>
-          <div class="hero-meta"><span>FIRST-PERSON TRAVERSAL</span><span>ONE COURSE / NO LEVELS</span></div>
+          <p class="hero-copy">Fifteen levels. Three boss runs.<br />Calm daylight. Precision movement. Save your progress.</p>
+          <div class="hero-meta"><span>FIRST-PERSON TRAVERSAL</span><span>15 LEVELS / 3 BOSSES</span></div>
           <div class="menu-actions">
-            <button id="start-button" class="button button-primary"><span>START RUN</span><span aria-hidden="true">↗</span></button>
+            <button id="start-button" class="button button-primary"><span>START SELECTED LEVEL</span><span aria-hidden="true">↗</span></button>
+            <button id="resume-campaign-button" class="button button-secondary" hidden><span>CONTINUE CAMPAIGN</span><span aria-hidden="true">↗</span></button>
+            <button id="restart-selected-button" class="button button-secondary">RESTART SELECTED LEVEL</button>
           </div>
           <div class="menu-utility">
             <button id="settings-button" class="text-button">SETTINGS</button>
@@ -34,12 +36,13 @@
             <button id="credits-button" class="text-button">CREDITS</button>
             <button id="install-button" class="text-button">INSTALL APP</button>
           </div>
+          <p id="selected-level-label" class="touch-note">SELECTED: CH 1 / LEVEL 1</p>
           <p id="touch-note" class="touch-note" hidden>Touch controls are available during runs. Landscape mode is recommended.</p>
         </section>
         <aside class="course-panel">
-          <div class="panel-heading"><span>THE CONTINUOUS ROUTE</span><span class="panel-count">01 / 01</span></div>
+          <div class="panel-heading"><span>CHAPTER SELECT</span><span class="panel-count">03 / 15</span></div>
           <div id="course-list" class="course-list"></div>
-          <div class="course-footer"><span>CHECKPOINTS ENABLED</span><span>DIFFICULTY BUILDS OVER DISTANCE</span></div>
+          <div class="course-footer"><span>AUTO-SAVE ENABLED</span><span>5 LEVELS PER CHAPTER</span></div>
         </aside>
         <div class="menu-footer"><span>BUILT FOR MOMENTUM</span><span>WASD <i>+</i> MOUSE</span><span>DESKTOP + MOBILE</span></div>
       </main>
@@ -89,7 +92,7 @@
           <div class="result-time"><span>FINAL TIME</span><strong id="finish-time">00:00.00</strong></div>
           <div class="result-grid"><div><span>MEDAL</span><strong id="finish-medal">BRONZE</strong></div><div><span>PERSONAL BEST</span><strong id="finish-best">—:—</strong></div><div><span>CHECKPOINTS</span><strong id="finish-checkpoints">0 / 0</strong></div><div><span>COLLECTED</span><strong id="finish-collectibles">0 / 0</strong></div></div>
           <p id="finish-message" class="modal-copy">The course is complete.</p>
-          <div class="modal-actions"><button id="replay-button" class="button button-primary"><span>RUN IT AGAIN</span><span>↗</span></button><button id="finish-menu-button" class="button button-secondary">MAIN MENU</button></div>
+          <div class="modal-actions"><button id="next-level-button" class="button button-primary" hidden>NEXT LEVEL</button><button id="replay-button" class="button button-secondary"><span>REPLAY LEVEL</span><span>↗</span></button><button id="finish-menu-button" class="button button-quiet">MAIN MENU</button></div>
           <div class="modal-foot">PERSONAL RECORDS ARE STORED ON THIS DEVICE</div>
         </div>
       </section>

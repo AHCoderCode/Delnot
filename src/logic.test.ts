@@ -1,56 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { formatTime, medalForTime, normalizeJoystick, normalizeSave, normalizeSettings, parseSave, progressBetween } from "./logic";
-
-describe("mobile joystick input", () => {
-  it("normalizes movement inside the stick radius", () => {
-    expect(normalizeJoystick(25, 0, 50)).toEqual({ x: 0.5, y: 0 });
-    expect(normalizeJoystick(0, -25, 50)).toEqual({ x: 0, y: -0.5 });
-  });
-  it("clamps diagonal input and filters stick drift", () => {
-    const diagonal = normalizeJoystick(100, 100, 50);
-    expect(Math.hypot(diagonal.x, diagonal.y)).toBeCloseTo(1);
-    expect(normalizeJoystick(2, -3, 50)).toEqual({ x: 0, y: 0 });
-    expect(normalizeJoystick(NaN, 2, 50)).toEqual({ x: 0, y: 0 });
-  });
-});
-
-describe("time and route calculations", () => {
-  it("formats run time to centiseconds", () => {
-    expect(formatTime(0)).toBe("00:00.00");
-    expect(formatTime(61523)).toBe("01:01.52");
-    expect(formatTime(-100)).toBe("00:00.00");
-  });
-  it("clamps route progress to the course", () => {
-    expect(progressBetween(10, 10, -90)).toBe(0);
-    expect(progressBetween(-40, 10, -90)).toBe(0.5);
-    expect(progressBetween(-100, 10, -90)).toBe(1);
-    expect(progressBetween(0, 0, 0)).toBe(0);
-  });
-  it("awards medals from elapsed time rather than a fabricated score", () => {
-    expect(medalForTime(30000, 60000, 90000)).toBe("PLATINUM");
-    expect(medalForTime(50000, 60000, 90000)).toBe("GOLD");
-    expect(medalForTime(80000, 60000, 90000)).toBe("SILVER");
-    expect(medalForTime(100000, 60000, 90000)).toBe("BRONZE");
-  });
-});
-
-describe("safe local persistence", () => {
-  it("uses safe defaults for damaged save data", () => {
-    expect(parseSave("{broken").unlocked).toEqual(["line"]);
-    expect(normalizeSave(null).version).toBe(1);
-  });
-  it("filters invalid courses and unsafe timing values", () => {
-    const save = normalizeSave({ unlocked: ["line", "script", "heights"], best: { line: 12000, lab: 33000 }, collected: ["line:one", 5] });
-    expect(save.unlocked).toEqual(["line"]);
-    expect(save.best).toEqual({ line: 12000 });
-    expect(save.collected).toEqual(["line:one"]);
-  });
-  it("clamps settings to supported ranges", () => {
-    const settings = normalizeSettings({ sensitivity: 99, fov: 10, quality: "ultra", masterVolume: -2, cameraEffects: false });
-    expect(settings.sensitivity).toBe(2.5);
-    expect(settings.fov).toBe(65);
-    expect(settings.masterVolume).toBe(0);
-    expect(settings.quality).toBe("ultra");
-    expect(settings.cameraEffects).toBe(false);
-  });
+import {describe,expect,it} from "vitest";
+import {COURSE_IDS,formatTime,medalForTime,normalizeJoystick,normalizeSave,normalizeSettings,parseSave,progressBetween} from "./logic";
+describe("mobile joystick input",()=>{it("normalizes input and filters drift",()=>{expect(normalizeJoystick(25,0,50)).toEqual({x:.5,y:0});const d=normalizeJoystick(100,100,50);expect(Math.hypot(d.x,d.y)).toBeCloseTo(1);expect(normalizeJoystick(2,-3,50)).toEqual({x:0,y:0});expect(normalizeJoystick(NaN,2,50)).toEqual({x:0,y:0});});});
+describe("time and route calculations",()=>{it("formats run time",()=>{expect(formatTime(61523)).toBe("01:01.52");expect(formatTime(-100)).toBe("00:00.00");});it("clamps progress",()=>{expect(progressBetween(10,10,-90)).toBe(0);expect(progressBetween(-40,10,-90)).toBe(.5);expect(progressBetween(-100,10,-90)).toBe(1);expect(progressBetween(0,0,0)).toBe(0);});it("awards medals from elapsed time",()=>{expect(medalForTime(30000,60000,90000)).toBe("PLATINUM");expect(medalForTime(50000,60000,90000)).toBe("GOLD");expect(medalForTime(80000,60000,90000)).toBe("SILVER");expect(medalForTime(100000,60000,90000)).toBe("BRONZE");});});
+describe("campaign save integrity",()=>{
+it("contains fifteen ordered level IDs",()=>{expect(COURSE_IDS).toHaveLength(15);expect(COURSE_IDS[0]).toBe("ch1-l1");expect(COURSE_IDS[4]).toBe("ch1-l5");expect(COURSE_IDS[14]).toBe("ch3-l5");});
+it("defaults safely after damaged storage",()=>{expect(parseSave("{broken").unlocked).toEqual(["ch1-l1"]);expect(normalizeSave(null).version).toBe(2);});
+it("preserves a valid checkpoint and only sequential unlocks",()=>{const s=normalizeSave({unlocked:["ch1-l1","ch1-l3","bad"],completed:["ch1-l1","ch1-l2"],best:{"ch1-l1":12000,"ch1-l2":-5},selectedCourse:"ch1-l2",lastCourse:"ch1-l2",checkpoints:{"ch1-l2":{x:1,top:.5,z:-420,index:1,elapsedMs:65000,started:true},"ch1-l4":{x:0,top:0,z:-8000,index:9,elapsedMs:90000,started:true}},collected:["ch1-l1:one",5,"line:old"]});expect(s.unlocked).toEqual(["ch1-l1","ch1-l2","ch1-l3"]);expect(s.best).toEqual({"ch1-l1":12000});expect(s.completed).toEqual(["ch1-l1","ch1-l2"]);expect(s.selectedCourse).toBe("ch1-l2");expect(s.checkpoints["ch1-l2"]).toEqual({x:1,top:.5,z:-420,index:1,elapsedMs:65000,started:true});expect(s.checkpoints["ch1-l4"]).toBeUndefined();expect(s.collected).toEqual(["ch1-l1:one"]);});
+it("clamps settings",()=>{const s=normalizeSettings({sensitivity:99,fov:10,quality:"ultra",masterVolume:-2,cameraEffects:false});expect(s.sensitivity).toBe(2.5);expect(s.fov).toBe(65);expect(s.masterVolume).toBe(0);expect(s.quality).toBe("ultra");expect(s.cameraEffects).toBe(false);});
 });

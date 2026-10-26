@@ -233,3 +233,36 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* Keep mobile controls available even when players hide the HUD. */
 .hud-hidden-data > :not(#touch-controls) { visibility: hidden; }
+
+/* Campaign selection: scrollable chapter and level cards for touch and desktop. */
+.course-panel { max-height:min(76vh,760px);display:flex;flex-direction:column; }
+.course-list { min-height:0;overflow-y:auto;padding:2px 5px 2px 0;scrollbar-width:thin;scrollbar-color:rgba(83,113,120,.5) transparent; }
+.chapter-block { padding:10px 0 12px;border-bottom:1px solid var(--line); }
+.chapter-heading { display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:5px 12px;padding:2px 0 9px;color:#334f57; }
+.chapter-heading>span { font:700 8px/1.4 ui-monospace,monospace;letter-spacing:.16em;color:var(--accent-bright); }
+.chapter-heading>strong { font-size:11px;letter-spacing:.1em;text-align:right; }
+.chapter-heading>small { grid-column:1/-1;color:#70858a;font:600 7px/1.4 ui-monospace,monospace;letter-spacing:.12em; }
+.level-grid { display:grid;grid-template-columns:1fr;gap:4px; }
+.level-option { display:grid;grid-template-columns:28px minmax(0,1fr) 18px;align-items:center;gap:9px;width:100%;min-height:45px;padding:6px 8px;color:#2b474f;text-align:left;border:1px solid rgba(37,62,69,.1);background:rgba(255,255,255,.34);cursor:pointer;transition:background .16s,border-color .16s; }
+.level-option:hover:not(:disabled),.level-option.selected { background:rgba(199,123,99,.11);border-color:rgba(185,104,80,.5); }
+.level-option.selected { box-shadow:inset 3px 0 var(--accent); }
+.level-option.locked { opacity:.48;cursor:not-allowed; }
+.level-option.completed .level-status { color:#3d8a7f; }
+.level-option.boss-level { background:rgba(112,183,173,.13); }
+.level-option.boss-level.selected { background:rgba(112,183,173,.24);border-color:#70b7ad; }
+.level-number { display:grid;place-items:center;width:25px;height:25px;background:rgba(80,116,125,.1);color:#49676f;font:800 10px/1 ui-monospace,monospace; }
+.level-option.boss-level .level-number { background:rgba(112,183,173,.32);color:#335d5b; }
+.level-copy { display:grid;gap:4px;min-width:0; }
+.level-copy strong { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:750; }
+.level-copy small { overflow-wrap:anywhere;color:#6c8186;font:600 7px/1.35 ui-monospace,monospace;letter-spacing:.04em; }
+.level-status { color:#72888d;text-align:center;font-size:15px; }
+#selected-level-label { color:#5e7c81;font:700 8px/1.5 ui-monospace,monospace;letter-spacing:.1em; }
+#resume-campaign-button { background:rgba(112,183,173,.14);border-color:rgba(70,132,126,.4);color:#254e4b; }
+#next-level-button { width:100%; }
+@media (min-width:761px) { .course-list { max-height:min(58vh,570px); } }
+@media (max-width:760px) {
+ .course-panel{max-height:none}.course-list{max-height:none;overflow:visible}.menu-screen{padding-bottom:84px}
+ .menu-actions{display:grid;grid-template-columns:1fr}.menu-actions .button{width:100%;min-width:0}
+ .level-option{min-height:48px}.chapter-heading>strong{font-size:12px}
+}
+@media(max-width:420px){.menu-utility{gap:12px;flex-wrap:wrap}.level-option{grid-template-columns:26px minmax(0,1fr) 16px;padding:5px}}

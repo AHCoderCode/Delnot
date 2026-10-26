@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { DEFAULT_SETTINGS, formatTime, medalForTime, normalizeJoystick, parseSave, parseSettings, progressBetween, type CourseId, type GameSettings, type Medal, type SaveData } from "./logic";
-import { generateLongCourse, type CheckpointSpec, type CourseSpec, type PlatformSpec, type TokenSpec } from "./course";
+import { COURSE_IDS, DEFAULT_SETTINGS, formatTime, medalForTime, normalizeJoystick, parseSave, parseSettings, progressBetween, type CourseId, type GameSettings, type Medal, type SaveData } from "./logic";
+import { LEVEL_DEFINITIONS, generateLevelCourse, levelDefinition, type CheckpointSpec, type CourseSpec, type PlatformSpec, type TokenSpec } from "./course";
 import "./style.css";
 
 type MaterialKey = "concrete" | "light" | "dark" | "charcoal" | "steel" | "orange" | "cyan" | "white";
@@ -15,7 +15,7 @@ interface WallContact { collider: Collider; normal: number; }
 interface VaultMotion { from: THREE.Vector3; to: THREE.Vector3; direction: THREE.Vector3; time: number; duration: number; }
 type InputCode = string;
 
-const COURSES: CourseSpec[] = [generateLongCourse()];
+const COURSE_ORDER: CourseId[] = COURSE_IDS;
 
 const app = document.getElementById("app");
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement | null;
@@ -33,14 +33,15 @@ function readLocal(key: string): string | null {
 function writeLocal(key: string, value: string): void {
   try { window.localStorage.setItem(key, value); } catch { showToast("LOCAL SAVE UNAVAILABLE — STORAGE IS BLOCKED."); }
 }
-function courseById(id: CourseId): CourseSpec {
-  return COURSES.find((course) => course.id === id) ?? COURSES[0]!;
-}
+function courseById(id: CourseId): CourseSpec { return generateLevelCourse(id); }
+function isCourseId(value: string | undefined): value is CourseId { return !!value && COURSE_ORDER.includes(value as CourseId); }
+function nextCourseId(id: CourseId): CourseId | null { const i=COURSE_ORDER.indexOf(id); return i>=0&&i<COURSE_ORDER.length-1?COURSE_ORDER[i+1]!:null; }
+function labelForLevel(id: CourseId): string { const m=levelDefinition(id); return "CH "+m.chapter+" / LV "+m.level; }
 
 const saveData: SaveData = parseSave(readLocal("concrete-velocity.save.v1"));
 let settings: GameSettings = parseSettings(readLocal("concrete-velocity.settings.v1"));
-let selectedCourse: CourseId = "line";
-let currentCourse: CourseSpec = courseById("line");
+let selectedCourse: CourseId = isCourseId(saveData.selectedCourse) ? saveData.selectedCourse : saveData.lastCourse;
+let currentCourse: CourseSpec = courseById(selectedCourse);
 let isMenu = true;
 let isPlaying = false;
 let isPaused = false;
@@ -65,6 +66,7 @@ const materialCache = new Map<MaterialKey, THREE.MeshStandardMaterial>();
 const geometryCache = new Map<string, THREE.BoxGeometry>();
 let concreteTexture: THREE.CanvasTexture | null = null;
 let activeCheckpoint: CheckpointSpec | null = null;
+let lastSavedElapsedMs = 0;
 let activeCheckpointIndex = 0;
 let checkpointCount = 0;
 let collectedThisRun = 0;
@@ -421,6 +423,25 @@ function buildWorld(course: CourseSpec): void {
 }
 
 function saveProgress(): void { writeLocal("concrete-velocity.save.v1", JSON.stringify(saveData)); }
+function persistRunProgress(): void {
+  if(activeCheckpoint&&currentCourse&&isPlaying&&!isFinished) {
+    saveData.lastCourse=currentCourse.id;
+    saveData.checkpoints[currentCourse.id]={x:activeCheckpoint.x,top:activeCheckpoint.top,z:activeCheckpoint.z,index:activeCheckpointIndex,elapsedMs:Math.max(0,elapsedMs),started:runStarted};
+  }
+  saveData.selectedCourse=selectedCourse;lastSavedElapsedMs=elapsedMs;saveProgress();
+}
+function updateCampaignButtons(): void {
+  const selected=levelDefinition(selectedCourse),resumeMeta=levelDefinition(saveData.lastCourse);
+  const startText=el("start-button").querySelector("span");
+  if(startText)startText.textContent=saveData.completed.includes(selectedCourse)?"REPLAY SELECTED LEVEL":"START SELECTED LEVEL";
+  const resume=el<HTMLButtonElement>("resume-campaign-button");
+  const history=saveData.completed.length>0||Object.keys(saveData.checkpoints).length>0||saveData.lastCourse!=="ch1-l1";
+  resume.hidden=!history;
+  const resumeText=resume.querySelector("span");
+  if(resumeText)resumeText.textContent=saveData.completed.length===COURSE_ORDER.length?"REPLAY FINAL LEVEL":(saveData.checkpoints[saveData.lastCourse]?"RESUME ":"CONTINUE ")+"CH "+resumeMeta.chapter+" · LEVEL "+resumeMeta.level;
+  el("selected-level-label").textContent="SELECTED: CH "+selected.chapter+" / LEVEL "+selected.level+(selected.boss?" · BOSS":"");
+  el("restart-selected-button").textContent="RESTART "+selected.title.toUpperCase();
+}
 function saveSettings(): void { writeLocal("concrete-velocity.settings.v1", JSON.stringify(settings)); }
 
 function applySettings(): void {
@@ -458,19 +479,22 @@ function showToast(message: string): void {
   toastTimeout = window.setTimeout(() => { toast.hidden = true; }, 2500);
 }
 
-function isUnlocked(id: CourseId): boolean {
-  return id === "line";
-}
-
+function isUnlocked(id: CourseId): boolean { return saveData.unlocked.includes(id); }
 function renderCourseList(): void {
-  const root = el("course-list");
-  root.innerHTML =
-    '<div class="course-option selected" aria-current="true">' +
-      '<div class="course-option-top"><span>ONE CONTINUOUS COURSE</span><span>18,000 M</span></div>' +
-      '<strong>THE LONG LINE</strong>' +
-      '<p>A single first-person parkour route. Gaps widen, landings narrow, and wall-run chains become more demanding as you travel.</p>' +
-      '<div class="course-option-bottom"><span>CHECKPOINTS THROUGHOUT</span><span>20 MIN SPEEDRUN / ~40 MIN CASUAL</span></div>' +
-    '</div>';
+  const root=el("course-list");
+  root.innerHTML=[1,2,3].map(chapter=>{
+    const levels=LEVEL_DEFINITIONS.filter(v=>v.chapter===chapter),chapterTitle=levels[0]!.chapterTitle;
+    return '<section class="chapter-block"><div class="chapter-heading"><span>CHAPTER '+chapter+'</span><strong>'+chapterTitle+'</strong><small>'+(chapter===1?"FOUNDATION":chapter===2?"ADVANCED ROUTES":"MASTER SERIES")+'</small></div><div class="level-grid">'+levels.map(level=>{
+      const id=level.id,locked=!isUnlocked(id),complete=saveData.completed.includes(id),selected=selectedCourse===id,best=saveData.best[id];
+      return '<button class="level-option'+(selected?" selected":"")+(locked?" locked":"")+(complete?" completed":"")+(level.boss?" boss-level":"")+'" type="button" data-level="'+id+'"'+(locked?' disabled aria-disabled="true"':'')+'><span class="level-number">'+String(level.level).padStart(2,"0")+'</span><span class="level-copy"><strong>'+level.title+'</strong><small>'+(level.boss?"BOSS · 13–15 MIN":"≈ 7 MIN")+(best?" · PB "+formatTime(best):"")+'</small></span><span class="level-status">'+(complete?"✓":locked?"⌑":level.boss?"★":"›")+'</span></button>';
+    }).join("")+'</div></section>';
+  }).join("");
+  root.querySelectorAll<HTMLButtonElement>("[data-level]").forEach(button=>button.addEventListener("click",()=>{
+    const id=button.dataset.level;if(!isCourseId(id))return;
+    if(!isUnlocked(id)){showToast("COMPLETE PREVIOUS LEVELS TO UNLOCK THIS ROUTE.");return;}
+    selectedCourse=id;saveData.selectedCourse=id;saveProgress();renderCourseList();audio.ui();
+  }));
+  updateCampaignButtons();
 }
 
 function setRunVisibility(): void {
@@ -502,22 +526,27 @@ function resetPlayer(): void {
   yaw = 0; pitch = 0; cameraRoll = 0;
 }
 
-function startCourse(id: CourseId): void {
-  if (!isUnlocked(id)) {
-    showToast("THE CONTINUOUS ROUTE IS THE ONLY COURSE.");
-    return;
+function startCourse(id: CourseId,resumeSaved=false): void {
+  if(!isUnlocked(id)){showToast("COMPLETE PREVIOUS LEVELS TO UNLOCK THIS ROUTE.");return;}
+  currentCourse=courseById(id);selectedCourse=id;saveData.selectedCourse=id;saveData.lastCourse=id;
+  isMenu=false;isPlaying=true;isPaused=false;isFinished=false;runStarted=false;elapsedMs=0;totalElapsed=0;lastSavedElapsedMs=0;
+  buildWorld(currentCourse);resetPlayer();
+  activeCheckpoint={x:currentCourse.spawn.x,top:currentCourse.spawn.top,z:currentCourse.spawn.z};activeCheckpointIndex=0;checkpointCount=0;
+  const saved=resumeSaved?saveData.checkpoints[id]:undefined;
+  if(saved){
+    activeCheckpoint={x:saved.x,top:saved.top,z:saved.z};activeCheckpointIndex=saved.index;checkpointCount=saved.index;
+    elapsedMs=saved.elapsedMs;runStarted=saved.started;player.position.set(saved.x,saved.top+.02,saved.z+1.35);
+    for(let i=0;i<saved.index&&i<checkpointObjects.length;i++){const cp=checkpointObjects[i]!;cp.activated=true;const mat=cp.ring.material as THREE.MeshStandardMaterial;mat.color.set("#79bdb3");mat.emissive.set("#244e49");mat.emissiveIntensity=.12;}
+    showToast("SAVED CHECKPOINT RESTORED · "+labelForLevel(id));
+  } else {
+    saveData.checkpoints[id]={x:currentCourse.spawn.x,top:currentCourse.spawn.top,z:currentCourse.spawn.z,index:0,elapsedMs:0,started:false};
   }
-  currentCourse = courseById(id);
-  selectedCourse = id;
-  isMenu = false; isPlaying = true; isPaused = false; isFinished = false; runStarted = false;
-  elapsedMs = 0; totalElapsed = 0;
-  buildWorld(currentCourse);
-  resetPlayer();
   applySettings();
   renderCourseList();
   setRunVisibility();
-  el("hud-course").textContent = currentCourse.title;
-  el("hud-hint").textContent = "Move through the entry gate to start the clock.";
+  el("hud-course").textContent = labelForLevel(currentCourse.id) + " · " + currentCourse.title + (currentCourse.boss ? " · BOSS" : "");
+  el("hud-hint").textContent = currentCourse.boss ? "BOSS LEVEL: KEEP MOMENTUM AND USE THE CHECKPOINTS." : "Move through the entry gate to start the clock.";
+  if(!saved)persistRunProgress();
   audio.start();
   audio.ui();
   if (!touchMode) requestPointerLockSafe();
@@ -531,10 +560,11 @@ function requestPointerLockSafe(): void {
 }
 
 function returnToMenu(): void {
+  if(isPlaying&&!isFinished)persistRunProgress();
   isMenu = true; isPlaying = false; isPaused = false; isFinished = false; runStarted = false;
   keys.clear(); touchMoveX=0; touchMoveY=0; activeStickPointer=-1; activeLookPointer=-1; vaultMotion = null;
   if (document.pointerLockElement) document.exitPointerLock();
-  selectedCourse = currentCourse.id;
+  selectedCourse = isCourseId(saveData.selectedCourse) ? saveData.selectedCourse : currentCourse.id;
   renderCourseList();
   setRunVisibility();
   el("info-overlay").hidden = true;
@@ -558,6 +588,7 @@ function resumeGame(): void {
 
 function restartFromCheckpoint(): void {
   if (!activeCheckpoint) return;
+  persistRunProgress();
   player.position.set(activeCheckpoint.x, activeCheckpoint.top + 0.02, activeCheckpoint.z + 1.35);
   player.velocity.set(0, 0, 0);
   player.height = 1.8; player.grounded = false; player.coyote = 0; player.jumpBuffer = 0;
@@ -571,9 +602,7 @@ function restartFromCheckpoint(): void {
   }
 }
 
-function restartEntireCourse(): void {
-  startCourse(currentCourse.id);
-}
+function restartEntireCourse(): void { startCourse(currentCourse.id,false); }
 
 function finishCourse(): void {
   if (isFinished || !runStarted || elapsedMs <= 0) return;
@@ -581,18 +610,30 @@ function finishCourse(): void {
   const previousBest = saveData.best[currentCourse.id];
   const isNewBest = previousBest === undefined || elapsedMs < previousBest;
   if (isNewBest) saveData.best[currentCourse.id] = elapsedMs;
-  const medal: Medal = medalForTime(elapsedMs, currentCourse.goldTime, currentCourse.silverTime);
-  saveData.medals[currentCourse.id] = medal;
+  const medal: Medal = medalForTime(elapsedMs,currentCourse.goldTime,currentCourse.silverTime);
+  saveData.medals[currentCourse.id]=medal;
+  if(!saveData.completed.includes(currentCourse.id))saveData.completed.push(currentCourse.id);
+  const unlockedNext=nextCourseId(currentCourse.id);
+  if(unlockedNext&&!saveData.unlocked.includes(unlockedNext))saveData.unlocked.push(unlockedNext);
+  delete saveData.checkpoints[currentCourse.id];
+  if(unlockedNext){saveData.lastCourse=unlockedNext;selectedCourse=unlockedNext;saveData.selectedCourse=unlockedNext;}
+  else{saveData.lastCourse=currentCourse.id;selectedCourse=currentCourse.id;saveData.selectedCourse=currentCourse.id;}
   saveProgress();
   el("finish-time").textContent = formatTime(elapsedMs);
   el("finish-best").textContent = formatTime(saveData.best[currentCourse.id] ?? elapsedMs);
   el("finish-medal").textContent = medal;
   el("finish-checkpoints").textContent = checkpointCount + " / " + currentCourse.checkpoints.length;
   el("finish-collectibles").textContent = collectedThisRun + " / " + currentCourse.tokens.length;
-  el("finish-message").textContent = isNewBest ? "NEW PERSONAL BEST — this result was recorded on this device." : "The route is complete. Your recorded personal best remains " + formatTime(previousBest ?? elapsedMs) + ".";
+  const nextId=nextCourseId(currentCourse.id);
+  el("finish-message").textContent=nextId
+    ? (isNewBest?"NEW PERSONAL BEST SAVED. ":"LEVEL COMPLETE. ")+"NEXT UNLOCKED: "+labelForLevel(nextId)+" · "+levelDefinition(nextId).title+"."
+    : (isNewBest?"NEW PERSONAL BEST SAVED. ":"")+"CAMPAIGN COMPLETE — ALL 15 LEVELS CLEARED.";
   renderCourseList();
+  const nextButton=el<HTMLButtonElement>("next-level-button");
+  nextButton.hidden=!nextId;
+  nextButton.textContent=nextId?"NEXT LEVEL · "+labelForLevel(nextId):"CAMPAIGN COMPLETE";
   setRunVisibility();
-  if (document.pointerLockElement) document.exitPointerLock();
+  if(document.pointerLockElement)document.exitPointerLock();
   audio.finish();
 }
 
@@ -883,8 +924,9 @@ function updateTriggers(): void {
       activeCheckpointIndex = checkpointObjects.indexOf(checkpoint) + 1;
       activeCheckpoint = checkpoint.spec;
       const material = checkpoint.ring.material as THREE.MeshStandardMaterial;
-      material.color.set("#8df4e2"); material.emissive.set("#31cbb4"); material.emissiveIntensity = 1.8;
-      showToast("CHECKPOINT " + String(activeCheckpointIndex).padStart(2, "0") + " ACTIVATED.");
+      material.color.set("#79bdb3"); material.emissive.set("#244e49"); material.emissiveIntensity = 0.12;
+      persistRunProgress();
+      showToast("CHECKPOINT " + String(activeCheckpointIndex).padStart(2, "0") + " SAVED · " + labelForLevel(currentCourse.id));
       audio.checkpoint();
     }
   }
@@ -1012,7 +1054,7 @@ function openInfo(kind: "controls" | "credits"): void {
         manualItem("SHIFT", "Sprint", "Higher top speed helps clear long gaps. A clean landing matters more than raw speed.") +
         manualItem("C / CTRL", "Slide", "Hold while moving on the ground. The lower capsule fits beneath the marked beam; release to stand when clear.") +
         manualItem("E", "Vault", "Press near a short, marked barrier. The destination must have safe clearance.") +
-        manualItem("R", "Checkpoint", "Respawn at the latest activated checkpoint. Your current run timer continues.") +
+        manualItem("R", "Checkpoint", "Respawn at the latest activated checkpoint. Your level, checkpoint, collectibles, and timer save locally.") +
         manualItem("ESC", "Pause", "Pause, restart, change settings, or return to course selection.") +
       '</div><p class="info-note">Keyboard and mouse are required. Touchscreen movement controls are not implemented.</p>';
   } else {
@@ -1048,7 +1090,7 @@ function frame(stamp: number): void {
   while (physicsAccumulator >= FIXED_STEP && steps < 12) {
     totalElapsed += FIXED_STEP;
     if (isPlaying && !isPaused && !isFinished) {
-      if (runStarted) elapsedMs += FIXED_STEP * 1000;
+      if (runStarted) { elapsedMs += FIXED_STEP * 1000; if (elapsedMs - lastSavedElapsedMs >= 5000) persistRunProgress(); }
       updatePlayer(FIXED_STEP); updateTriggers();
     } else if (isMenu) {
       updateMenuCamera(stamp);
@@ -1103,8 +1145,11 @@ function initialize(): void {
   if (touchMode) { el("touch-note").hidden = false; el("touch-note").textContent = "Touch controls are available during runs. Landscape mode gives you more room."; }
   setupTouchControls(); setupPwaInstall();
 
-  el("start-button").addEventListener("click", () => startCourse(selectedCourse));
-    el("settings-button").addEventListener("click", openSettings);
+  el("start-button").addEventListener("click", () => startCourse(selectedCourse,false));
+    el("resume-campaign-button").addEventListener("click",()=>{const id=saveData.lastCourse;if(!isUnlocked(id)){showToast("COMPLETE THE PREVIOUS LEVEL FIRST.");return;}startCourse(id,true);});
+  el("restart-selected-button").addEventListener("click",()=>startCourse(selectedCourse,false));
+  el("next-level-button").addEventListener("click",()=>{const id=nextCourseId(currentCourse.id);if(id&&isUnlocked(id))startCourse(id,false);});
+  el("settings-button").addEventListener("click", openSettings);
   el("pause-settings-button").addEventListener("click", openSettings);
   el("controls-button").addEventListener("click", () => openInfo("controls"));
   el("credits-button").addEventListener("click", () => openInfo("credits"));
@@ -1115,7 +1160,7 @@ function initialize(): void {
   el("restart-checkpoint-button").addEventListener("click", restartFromCheckpoint);
   el("restart-course-button").addEventListener("click", restartEntireCourse);
   el("return-menu-button").addEventListener("click", returnToMenu);
-  el("replay-button").addEventListener("click", () => startCourse(currentCourse.id));
+  el("replay-button").addEventListener("click", () => startCourse(currentCourse.id,false));
   el("finish-menu-button").addEventListener("click", returnToMenu);
   el("settings-overlay").addEventListener("click", (event) => { if (event.target === el("settings-overlay")) closeSettings(); });
   el("info-overlay").addEventListener("click", (event) => { if (event.target === el("info-overlay")) closeInfo(); });
@@ -1165,7 +1210,7 @@ function initialize(): void {
   });
   window.addEventListener("resize", resizeRenderer);
   window.addEventListener("beforeunload", () => {
-    if (saveData) saveProgress();
+    if (saveData) { if (isPlaying && !isFinished) persistRunProgress(); else saveProgress(); }
     if (settings) saveSettings();
   });
   setRunVisibility();
