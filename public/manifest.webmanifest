@@ -1,0 +1,19 @@
+{
+  "name": "Concrete Velocity — First-Person Parkour",
+  "short_name": "Concrete Velocity",
+  "description": "A first-person browser parkour time trial through monumental concrete architecture.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111314",
+  "theme_color": "#111314",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
