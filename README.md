@@ -1,32 +1,32 @@
 # CONCRETE VELOCITY
 
-Original first-person parkour time trials built with TypeScript, Vite, and Three.js. The game runs in a modern desktop browser and needs no account or backend.
+First-person browser parkour in TypeScript, Vite, and Three.js. Desktop keyboard/mouse and mobile touch controls; no account or backend.
 
 ## Development
+- Node.js 20+
+- `npm install`
+- `npm run dev`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
 
-- Node.js 20 or newer
-- npm install
-- npm run dev
-- npm run typecheck
-- npm test
-- npm run build
+## Desktop controls
+- WASD move; mouse look
+- Space jump; Shift sprint
+- C/Ctrl slide; E vault
+- R restart at checkpoint; Esc pause
 
-## Controls
+## Mobile controls
+- Left virtual joystick: move/strafe
+- Drag the right half of the game view: look
+- Hold Run or Slide; tap Jump or Vault
+- Pause and Reset are on-screen; landscape is recommended
+- Use Install App or the browser Install/Add to Home Screen menu. iPhone/iPad: Share → Add to Home Screen.
 
-- WASD — move; mouse — look (click to capture the pointer)
-- Space — jump
-- Shift — sprint
-- C or Ctrl — slide under low beams
-- E — vault eligible low obstacles
-- R — respawn at the latest checkpoint
-- Esc — pause and release the pointer
+## Features
+- Three procedural courses and free practice
+- Fixed-step movement, jump buffering, coyote time, sprint, slide, wall-run, wall-jump, vault, checkpoints and fall recovery
+- Timer, finish results, medals, collectibles, unlocks and local personal bests
+- Responsive settings, audio, reduced motion, HUD and PWA manifest/icon/service worker
 
-## Included
-
-- Three procedural concrete courses plus an open movement practice area
-- First-person acceleration, sprinting, jumping, coyote time, buffered jumps, sliding, wall-running, wall jumps, vaulting, and collision-safe respawning
-- Checkpoints, a run timer, completion results, medals, personal bests, collectible route markers, and course unlocks
-- Responsive menus, graphics quality settings, audio controls, reduced motion, and HUD options
-- Versioned and validated browser-local settings and progression saves
-
-Visuals and audio are procedurally generated; no proprietary VHOLUME assets are included. Keyboard and mouse are required; touch movement controls are not implemented.
+Original procedural geometry/audio; no proprietary VHOLUME assets.

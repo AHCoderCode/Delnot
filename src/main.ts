@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { DEFAULT_SETTINGS, formatTime, medalForTime, parseSave, parseSettings, progressBetween, type CourseId, type GameSettings, type Medal, type SaveData } from "./logic";
+import { DEFAULT_SETTINGS, formatTime, medalForTime, normalizeJoystick, parseSave, parseSettings, progressBetween, type CourseId, type GameSettings, type Medal, type SaveData } from "./logic";
 import "./style.css";
 
 type MaterialKey = "concrete" | "light" | "dark" | "charcoal" | "steel" | "orange" | "cyan" | "white";
@@ -269,6 +269,13 @@ const player = {
 let yaw = 0;
 let pitch = 0;
 let cameraRoll = 0;
+const touchMode = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+let touchMoveX = 0, touchMoveY = 0;
+let activeStickPointer = -1, activeLookPointer = -1;
+let activeLookX = 0, activeLookY = 0;
+let deferredInstallPrompt: (Event & { prompt: () => Promise<void>; userChoice?: Promise<{ outcome: string }> }) | null = null;
+const FIXED_STEP = 1 / 120;
+let physicsAccumulator = 0;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#bdbbb5");
@@ -639,6 +646,8 @@ function setRunVisibility(): void {
   el("hud").hidden = !isPlaying || isPaused || isFinished || !settings.showHud;
   el("pause-overlay").hidden = !isPaused;
   el("finish-overlay").hidden = !isFinished;
+  const touchControls = document.getElementById("touch-controls");
+  if (touchControls) touchControls.hidden = !touchMode || !isPlaying || isPaused || isFinished || isMenu;
 }
 
 function resetPlayer(): void {
@@ -678,12 +687,19 @@ function startCourse(id: CourseId): void {
   el("hud-hint").textContent = "Move through the entry gate to start the clock.";
   audio.start();
   audio.ui();
-  try { gameCanvas.requestPointerLock(); } catch { showToast("CLICK THE GAME VIEW TO CAPTURE THE MOUSE."); }
+  if (!touchMode) requestPointerLockSafe();
+  else showToast("LEFT STICK TO MOVE · DRAG RIGHT SIDE TO LOOK.");
+}
+
+function requestPointerLockSafe(): void {
+  if (touchMode) return;
+  try { const request = gameCanvas.requestPointerLock(); if (request && typeof (request as Promise<void>).catch === "function") void (request as Promise<void>).catch(() => showToast("CLICK THE GAME VIEW TO CAPTURE THE MOUSE.")); }
+  catch { showToast("CLICK THE GAME VIEW TO CAPTURE THE MOUSE."); }
 }
 
 function returnToMenu(): void {
   isMenu = true; isPlaying = false; isPaused = false; isFinished = false; runStarted = false;
-  keys.clear(); vaultMotion = null;
+  keys.clear(); touchMoveX=0; touchMoveY=0; activeStickPointer=-1; activeLookPointer=-1; vaultMotion = null;
   if (document.pointerLockElement) document.exitPointerLock();
   selectedCourse = currentCourse.id === "practice" ? "lab" : currentCourse.id;
   renderCourseList();
@@ -695,7 +711,7 @@ function returnToMenu(): void {
 
 function pauseGame(): void {
   if (!isPlaying || isPaused || isFinished) return;
-  isPaused = true; keys.clear();
+  isPaused = true; keys.clear(); touchMoveX=0; touchMoveY=0; activeStickPointer=-1; activeLookPointer=-1;
   setRunVisibility();
   if (document.pointerLockElement) document.exitPointerLock();
   audio.ui();
@@ -703,13 +719,8 @@ function pauseGame(): void {
 
 function resumeGame(): void {
   if (!isPlaying || isFinished) return;
-  if (document.pointerLockElement) {
-    isPaused = false; setRunVisibility(); return;
-  }
-  try { gameCanvas.requestPointerLock(); } catch {
-    isPaused = false; setRunVisibility(); showToast("POINTER LOCK UNAVAILABLE — CLICK THE GAME VIEW TO RECAPTURE.");
-  }
-  audio.start();
+  if (touchMode || document.pointerLockElement) { isPaused = false; setRunVisibility(); audio.start(); return; }
+  requestPointerLockSafe(); audio.start();
 }
 
 function restartFromCheckpoint(): void {
@@ -723,7 +734,7 @@ function restartFromCheckpoint(): void {
   showToast("CHECKPOINT RESTORED.");
   audio.tone(190, 0.12, "triangle", 0.08, 110);
   if (!document.pointerLockElement) {
-    try { gameCanvas.requestPointerLock(); } catch { /* The user can recapture with a click. */ }
+    requestPointerLockSafe();
   }
 }
 
@@ -866,8 +877,10 @@ function updatePlayer(dt: number): void {
   else player.coyote = Math.max(0, player.coyote - dt);
   player.jumpBuffer = Math.max(0, player.jumpBuffer - dt);
 
-  const forwardInput = (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) - (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0);
-  const sideInput = (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
+  const keyboardForward = (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) - (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0);
+  const keyboardSide = (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
+  const forwardInput = THREE.MathUtils.clamp(keyboardForward - touchMoveY, -1, 1);
+  const sideInput = THREE.MathUtils.clamp(keyboardSide + touchMoveX, -1, 1);
   const sprinting = keys.has("ShiftLeft") || keys.has("ShiftRight");
   const slidePressed = keys.has("KeyC") || keys.has("ControlLeft") || keys.has("ControlRight");
   const forward = getForward();
@@ -1195,18 +1208,22 @@ function updateMenuCamera(time: number): void {
 function frame(stamp: number): void {
   requestAnimationFrame(frame);
   const rawDt = lastFrameStamp ? (stamp - lastFrameStamp) / 1000 : 1 / 60;
-  const dt = Math.max(0.001, Math.min(0.033, rawDt));
+  const frameDt = Math.max(0, Math.min(0.1, rawDt));
   lastFrameStamp = stamp;
-  totalElapsed += dt;
-  if (isPlaying && !isPaused && !isFinished) {
-    if (runStarted) elapsedMs += dt * 1000;
-    updatePlayer(dt);
-    updateTriggers();
-    updateHud(stamp);
-  } else if (isMenu) {
-    updateMenuCamera(stamp);
-    for (const token of tokenObjects) token.mesh.rotation.y += dt * 0.4;
+  physicsAccumulator = Math.min(physicsAccumulator + frameDt, FIXED_STEP * 12);
+  let steps = 0;
+  while (physicsAccumulator >= FIXED_STEP && steps < 12) {
+    totalElapsed += FIXED_STEP;
+    if (isPlaying && !isPaused && !isFinished) {
+      if (runStarted) elapsedMs += FIXED_STEP * 1000;
+      updatePlayer(FIXED_STEP); updateTriggers();
+    } else if (isMenu) {
+      updateMenuCamera(stamp);
+      for (const token of tokenObjects) token.mesh.rotation.y += FIXED_STEP * 0.4;
+    }
+    physicsAccumulator -= FIXED_STEP; steps++;
   }
+  if (isPlaying && !isPaused && !isFinished) updateHud(stamp);
   if (stamp - fpsLastStamp > 750) {
     const fps = frameCount * 1000 / Math.max(1, stamp - fpsLastStamp);
     frameCount = 0; fpsLastStamp = stamp;
@@ -1220,13 +1237,38 @@ function frame(stamp: number): void {
   }
 }
 
+function setupTouchControls(): void {
+  const zone=el("touch-stick-zone"), knob=el("touch-stick-knob"), radius=50;
+  const update=(event:PointerEvent)=>{const r=zone.getBoundingClientRect();const v=normalizeJoystick(event.clientX-(r.left+r.width/2),event.clientY-(r.top+r.height/2),radius);touchMoveX=v.x;touchMoveY=v.y;knob.style.transform="translate("+v.x*radius+"px,"+v.y*radius+"px)";};
+  const reset=(event?:PointerEvent)=>{if(event&&event.pointerId!==activeStickPointer)return;activeStickPointer=-1;touchMoveX=0;touchMoveY=0;knob.style.transform="translate(0,0)";};
+  zone.addEventListener("pointerdown",e=>{if(!touchMode||!isPlaying||isPaused||isFinished)return;activeStickPointer=e.pointerId;try{zone.setPointerCapture(e.pointerId);}catch{}update(e);audio.start();e.preventDefault();});
+  zone.addEventListener("pointermove",e=>{if(e.pointerId===activeStickPointer){update(e);e.preventDefault();}});zone.addEventListener("pointerup",reset);zone.addEventListener("pointercancel",reset);zone.addEventListener("lostpointercapture",()=>reset());
+  const bindHold=(id:string,code:string)=>{const b=el<HTMLButtonElement>(id);const down=(e:PointerEvent)=>{if(!touchMode||!isPlaying||isPaused||isFinished)return;keys.add(code);b.classList.add("is-active");try{b.setPointerCapture(e.pointerId);}catch{}audio.start();e.preventDefault();};const up=()=>{keys.delete(code);b.classList.remove("is-active");};b.addEventListener("pointerdown",down);b.addEventListener("pointerup",up);b.addEventListener("pointercancel",up);b.addEventListener("lostpointercapture",up);b.addEventListener("contextmenu",e=>e.preventDefault());};
+  bindHold("touch-sprint","ShiftLeft");bindHold("touch-slide","KeyC");
+  const jump=el<HTMLButtonElement>("touch-jump");jump.addEventListener("pointerdown",e=>{if(!touchMode||!isPlaying||isPaused||isFinished)return;player.jumpBuffer=.15;jump.classList.add("is-active");audio.start();e.preventDefault();});const jumpUp=()=>jump.classList.remove("is-active");jump.addEventListener("pointerup",jumpUp);jump.addEventListener("pointercancel",jumpUp);jump.addEventListener("lostpointercapture",jumpUp);
+  el<HTMLButtonElement>("touch-vault").addEventListener("pointerdown",e=>{if(!touchMode||!isPlaying||isPaused||isFinished)return;audio.start();if(!tryVault())showToast("MOVE CLOSER TO A LOW BARRIER TO VAULT.");e.preventDefault();});
+  el<HTMLButtonElement>("touch-reset").addEventListener("click",()=>{if(isPlaying&&!isFinished)restartFromCheckpoint();});el<HTMLButtonElement>("touch-pause").addEventListener("click",()=>{if(isPlaying&&!isPaused&&!isFinished)pauseGame();});
+}
+function setupPwaInstall(): void {
+  window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstallPrompt=e as Event & {prompt:()=>Promise<void>;userChoice?:Promise<{outcome:string}>};});
+  window.addEventListener("appinstalled",()=>{deferredInstallPrompt=null;showToast("CONCRETE VELOCITY INSTALLED.");el("install-button").textContent="APP INSTALLED";});
+  if("serviceWorker" in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>{void navigator.serviceWorker.register("/sw.js").catch(()=>{});},{once:true});
+}
+async function installSite(): Promise<void> {
+  audio.ui();if(deferredInstallPrompt){try{await deferredInstallPrompt.prompt();const choice=await deferredInstallPrompt.userChoice;if(choice?.outcome==="accepted")showToast("INSTALL REQUEST ACCEPTED.");deferredInstallPrompt=null;}catch{showToast("USE YOUR BROWSER MENU TO INSTALL THIS APP.");}return;}
+  if(window.matchMedia("(display-mode: standalone)").matches||(navigator as Navigator&{standalone?:boolean}).standalone)showToast("CONCRETE VELOCITY IS ALREADY INSTALLED.");
+  else if(/iphone|ipad|ipod/i.test(navigator.userAgent))showToast("IPHONE / IPAD: TAP SHARE, THEN ADD TO HOME SCREEN.");
+  else showToast("OPEN YOUR BROWSER MENU AND CHOOSE INSTALL APP OR ADD TO HOME SCREEN.");
+}
+
 function initialize(): void {
   buildWorld(currentCourse);
   resetPlayer();
   renderCourseList();
   applySettings();
   el("hud-course").textContent = currentCourse.title;
-  if (window.matchMedia("(pointer: coarse)").matches) el("touch-note").hidden = false;
+  if (touchMode) { el("touch-note").hidden = false; el("touch-note").textContent = "Touch controls are available during runs. Landscape mode gives you more room."; }
+  setupTouchControls(); setupPwaInstall();
 
   el("start-button").addEventListener("click", () => startCourse(selectedCourse));
   el("practice-button").addEventListener("click", () => startCourse("practice"));
@@ -1234,6 +1276,7 @@ function initialize(): void {
   el("pause-settings-button").addEventListener("click", openSettings);
   el("controls-button").addEventListener("click", () => openInfo("controls"));
   el("credits-button").addEventListener("click", () => openInfo("credits"));
+  el("install-button").addEventListener("click", installSite);
   el("close-settings-button").addEventListener("click", closeSettings);
   el("close-info-button").addEventListener("click", closeInfo);
   el("resume-button").addEventListener("click", resumeGame);
@@ -1244,12 +1287,9 @@ function initialize(): void {
   el("finish-menu-button").addEventListener("click", returnToMenu);
   el("settings-overlay").addEventListener("click", (event) => { if (event.target === el("settings-overlay")) closeSettings(); });
   el("info-overlay").addEventListener("click", (event) => { if (event.target === el("info-overlay")) closeInfo(); });
-  gameCanvas.addEventListener("click", () => {
-    if (isPlaying && !isFinished && !isPaused && !document.pointerLockElement) {
-      try { gameCanvas.requestPointerLock(); } catch { showToast("POINTER LOCK IS NOT AVAILABLE IN THIS BROWSER."); }
-    }
-  });
+  gameCanvas.addEventListener("click", () => { if (!touchMode && isPlaying && !isFinished && !isPaused && !document.pointerLockElement) requestPointerLockSafe(); });
   document.addEventListener("pointerlockchange", () => {
+    if (touchMode) return;
     if (document.pointerLockElement === gameCanvas) {
       if (isPaused) isPaused = false;
       setRunVisibility();
@@ -1260,11 +1300,14 @@ function initialize(): void {
     }
   });
   document.addEventListener("mousemove", (event) => {
-    if (!isPlaying || isPaused || isFinished || document.pointerLockElement !== gameCanvas) return;
+    if (!isPlaying || isPaused || isFinished || document.pointerLockElement !== gameCanvas || touchMode) return;
     yaw -= event.movementX * settings.sensitivity * 0.00165;
     pitch -= event.movementY * settings.sensitivity * 0.00165;
     pitch = THREE.MathUtils.clamp(pitch, -1.43, 1.43);
   });
+  gameCanvas.addEventListener("pointerdown",e=>{if(e.pointerType!=="touch"||!touchMode||!isPlaying||isPaused||isFinished||e.clientX<window.innerWidth*.39)return;activeLookPointer=e.pointerId;activeLookX=e.clientX;activeLookY=e.clientY;e.preventDefault();});
+  gameCanvas.addEventListener("pointermove",e=>{if(e.pointerId!==activeLookPointer||!touchMode||isPaused||isFinished)return;const dx=e.clientX-activeLookX,dy=e.clientY-activeLookY;activeLookX=e.clientX;activeLookY=e.clientY;yaw-=dx*settings.sensitivity*.0044;pitch-=dy*settings.sensitivity*.0044;pitch=THREE.MathUtils.clamp(pitch,-1.43,1.43);e.preventDefault();});
+  const releaseLook=(e:PointerEvent)=>{if(e.pointerId===activeLookPointer)activeLookPointer=-1;};gameCanvas.addEventListener("pointerup",releaseLook);gameCanvas.addEventListener("pointercancel",releaseLook);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       if (!el("settings-overlay").hidden) { closeSettings(); event.preventDefault(); return; }
@@ -1284,7 +1327,7 @@ function initialize(): void {
     if (event.code === "KeyR") restartFromCheckpoint();
   });
   document.addEventListener("keyup", (event) => { keys.delete(event.code); });
-  window.addEventListener("blur", () => keys.clear());
+  window.addEventListener("blur", () => { keys.clear(); touchMoveX=0; touchMoveY=0; });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && isPlaying && !isPaused && !isFinished) pauseGame();
   });

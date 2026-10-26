@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111314" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Concrete Velocity" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
     <meta name="description" content="Concrete Velocity — a first-person parkour time trial through monumental brutalist architecture." />
     <title>CONCRETE VELOCITY — First-Person Parkour</title>
   </head>
@@ -26,8 +33,9 @@
             <button id="settings-button" class="text-button">SETTINGS</button>
             <button id="controls-button" class="text-button">CONTROLS</button>
             <button id="credits-button" class="text-button">CREDITS</button>
+            <button id="install-button" class="text-button">INSTALL APP</button>
           </div>
-          <p id="touch-note" class="touch-note" hidden>Keyboard and mouse required. Touch controls are not implemented.</p>
+          <p id="touch-note" class="touch-note" hidden>Touch controls are available during runs. Landscape mode is recommended.</p>
         </section>
         <aside class="course-panel">
           <div class="panel-heading"><span>SELECTED ROUTES</span><span class="panel-count">COURSE / 03</span></div>
@@ -50,6 +58,11 @@
           <div class="speed-readout"><span class="hud-label">VELOCITY</span><strong id="hud-speed">0.0 <small>M/S</small></strong></div>
         </div>
         <div class="hud-side-note">ESC <span>PAUSE / RELEASE</span></div>
+        <div id="touch-controls" class="touch-controls" hidden aria-label="Touch gameplay controls">
+          <div id="touch-stick-zone" class="touch-stick-zone" aria-label="Movement joystick"><div class="touch-stick-ring"><div id="touch-stick-knob" class="touch-stick-knob"></div></div><span class="touch-control-caption">MOVE</span></div>
+          <div class="touch-actions"><div class="touch-action-row"><button id="touch-vault" class="touch-button touch-button-small" type="button">VAULT</button><button id="touch-slide" class="touch-button touch-button-small" type="button">SLIDE</button></div><div class="touch-action-row"><button id="touch-sprint" class="touch-button" type="button">RUN</button><button id="touch-jump" class="touch-button touch-button-jump" type="button">JUMP</button></div></div>
+          <div class="touch-utility"><button id="touch-reset" class="touch-utility-button" type="button">RESET</button><button id="touch-pause" class="touch-utility-button" type="button">PAUSE</button></div><div class="touch-look-note">DRAG RIGHT SIDE TO LOOK</div>
+        </div>
       </section>
 
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

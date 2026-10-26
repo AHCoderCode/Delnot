@@ -45,6 +45,14 @@ export function formatTime(milliseconds: number): string {
   return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(centiseconds).padStart(2, "0");
 }
 
+export function normalizeJoystick(dx: number, dy: number, radius: number): { x: number; y: number } {
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(radius) || radius <= 0) return { x: 0, y: 0 };
+  const distance = Math.hypot(dx, dy);
+  if (distance <= radius * 0.12) return { x: 0, y: 0 };
+  const scale = Math.min(1, radius / distance) / radius;
+  return { x: dx * scale, y: dy * scale };
+}
+
 export function progressBetween(positionZ: number, startZ: number, finishZ: number): number {
   const span = startZ - finishZ;
   if (!Number.isFinite(positionZ) || !Number.isFinite(startZ) || !Number.isFinite(finishZ) || span <= 0) return 0;

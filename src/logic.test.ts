@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { formatTime, medalForTime, normalizeSave, normalizeSettings, parseSave, progressBetween } from "./logic";
+import { formatTime, medalForTime, normalizeJoystick, normalizeSave, normalizeSettings, parseSave, progressBetween } from "./logic";
+
+describe("mobile joystick input", () => {
+  it("normalizes movement inside the stick radius", () => {
+    expect(normalizeJoystick(25, 0, 50)).toEqual({ x: 0.5, y: 0 });
+    expect(normalizeJoystick(0, -25, 50)).toEqual({ x: 0, y: -0.5 });
+  });
+  it("clamps diagonal input and filters stick drift", () => {
+    const diagonal = normalizeJoystick(100, 100, 50);
+    expect(Math.hypot(diagonal.x, diagonal.y)).toBeCloseTo(1);
+    expect(normalizeJoystick(2, -3, 50)).toEqual({ x: 0, y: 0 });
+    expect(normalizeJoystick(NaN, 2, 50)).toEqual({ x: 0, y: 0 });
+  });
+});
 
 describe("time and route calculations", () => {
   it("formats run time to centiseconds", () => {
