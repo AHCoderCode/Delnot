@@ -201,6 +201,7 @@ const COURSES: CourseSpec[] = [
 const app = document.getElementById("app");
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement | null;
 if (!app || !canvas) throw new Error("Concrete Velocity requires its game canvas.");
+const gameCanvas: HTMLCanvasElement = canvas;
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -290,7 +291,7 @@ scene.add(rimLight);
 
 let renderer: THREE.WebGLRenderer;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
+  renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: true, alpha: false, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
@@ -677,7 +678,7 @@ function startCourse(id: CourseId): void {
   el("hud-hint").textContent = "Move through the entry gate to start the clock.";
   audio.start();
   audio.ui();
-  try { canvas.requestPointerLock(); } catch { showToast("CLICK THE GAME VIEW TO CAPTURE THE MOUSE."); }
+  try { gameCanvas.requestPointerLock(); } catch { showToast("CLICK THE GAME VIEW TO CAPTURE THE MOUSE."); }
 }
 
 function returnToMenu(): void {
@@ -705,7 +706,7 @@ function resumeGame(): void {
   if (document.pointerLockElement) {
     isPaused = false; setRunVisibility(); return;
   }
-  try { canvas.requestPointerLock(); } catch {
+  try { gameCanvas.requestPointerLock(); } catch {
     isPaused = false; setRunVisibility(); showToast("POINTER LOCK UNAVAILABLE — CLICK THE GAME VIEW TO RECAPTURE.");
   }
   audio.start();
@@ -722,7 +723,7 @@ function restartFromCheckpoint(): void {
   showToast("CHECKPOINT RESTORED.");
   audio.tone(190, 0.12, "triangle", 0.08, 110);
   if (!document.pointerLockElement) {
-    try { canvas.requestPointerLock(); } catch { /* The user can recapture with a click. */ }
+    try { gameCanvas.requestPointerLock(); } catch { /* The user can recapture with a click. */ }
   }
 }
 
@@ -1245,11 +1246,11 @@ function initialize(): void {
   el("info-overlay").addEventListener("click", (event) => { if (event.target === el("info-overlay")) closeInfo(); });
   canvas.addEventListener("click", () => {
     if (isPlaying && !isFinished && !isPaused && !document.pointerLockElement) {
-      try { canvas.requestPointerLock(); } catch { showToast("POINTER LOCK IS NOT AVAILABLE IN THIS BROWSER."); }
+      try { gameCanvas.requestPointerLock(); } catch { showToast("POINTER LOCK IS NOT AVAILABLE IN THIS BROWSER."); }
     }
   });
   document.addEventListener("pointerlockchange", () => {
-    if (document.pointerLockElement === canvas) {
+    if (document.pointerLockElement === gameCanvas) {
       if (isPaused) isPaused = false;
       setRunVisibility();
     } else if (isPlaying && !isFinished && !isMenu) {
