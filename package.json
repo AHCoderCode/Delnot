@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "npm run typecheck && npm test && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -16,7 +16,7 @@
   "devDependencies": {
     "@types/three": "^0.176.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
-    "vitest": "^3.1.2"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   }
 }

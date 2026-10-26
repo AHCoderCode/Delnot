@@ -479,11 +479,11 @@ function addCheckpoint(spec: CheckpointSpec): void {
   base.position.y = spec.top + 0.08; base.castShadow = false; base.receiveShadow = true; group.add(base);
   const ringMaterial = new THREE.MeshStandardMaterial({ color: "#f47a4d", emissive: "#f45c2f", emissiveIntensity: 1.1, metalness: 0.2, roughness: 0.35 });
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.055, 8, 28), ringMaterial);
-  ring.position.set(spec.x, spec.top + 1.05, spec.z);
+  ring.position.set(0, spec.top + 1.05, 0);
   ring.castShadow = false;
   group.add(ring);
   const pin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.08), materialFor("orange"));
-  pin.position.set(spec.x, spec.top + 0.39, spec.z); pin.castShadow = false; group.add(pin);
+  pin.position.set(0, spec.top + 0.39, 0); pin.castShadow = false; group.add(pin);
   group.position.set(spec.x, 0, spec.z);
   worldRoot.add(group);
   checkpointObjects.push({ spec, ring, activated: false });
@@ -822,7 +822,7 @@ function tryVault(): boolean {
     const side = Math.abs(dx * forward.z - dz * forward.x);
     const obstacleHeight = collider.maxY - player.position.y;
     const halfDepth = (Math.abs(forward.x) * (collider.maxX - collider.minX) + Math.abs(forward.z) * (collider.maxZ - collider.minZ)) / 2;
-    if (along > 0.25 && along < 2.05 && side < (collider.maxX - collider.minX) / 2 + 0.4 && obstacleHeight > 0.25 && obstacleHeight < 1.25) {
+    if (along > 0.25 && along < 2.05 && side < (collider.maxX - collider.minX) / 2 + 0.4 && obstacleHeight > 0.25 && obstacleHeight < 1.5) {
       const distance = along - halfDepth;
       if (distance < bestDistance) { bestDistance = distance; closest = collider; }
     }
