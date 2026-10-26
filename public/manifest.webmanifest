@@ -1,7 +1,7 @@
 {
-  "name": "Concrete Velocity — First-Person Parkour",
+  "name": "Concrete Velocity — The Long Line",
   "short_name": "Concrete Velocity",
-  "description": "A first-person browser parkour time trial through monumental concrete architecture.",
+  "description": "One calm, continuous first-person parkour course with checkpoints and wall-jumping.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
