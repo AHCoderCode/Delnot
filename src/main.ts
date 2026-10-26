@@ -953,7 +953,8 @@ function renderSettingsForm(): void {
     saveSettings();
     renderSettingsForm();
     applySettings();
-    el("hud").hidden = !isPlaying || isPaused || isFinished || !settings.showHud;
+    el("hud").hidden = !isPlaying || isPaused || isFinished || (!settings.showHud && !touchMode);
+  el("hud").classList.toggle("hud-hidden-data", !settings.showHud);
     showToast("SETTINGS RESET.");
   });
 }
@@ -983,7 +984,8 @@ function settingsInputChanged(event: Event): void {
   }
   saveSettings();
   applySettings();
-  el("hud").hidden = !isPlaying || isPaused || isFinished || !settings.showHud;
+  el("hud").hidden = !isPlaying || isPaused || isFinished || (!settings.showHud && !touchMode);
+  el("hud").classList.toggle("hud-hidden-data", !settings.showHud);
 }
 
 function openSettings(): void {

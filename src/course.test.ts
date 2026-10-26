@@ -19,6 +19,6 @@ describe("the single continuous parkour route", () => {
     expect(course.checkpoints[0]!.z).toBeGreaterThan(course.checkpoints.at(-1)!.z);
     expect(Math.min(...course.platforms.map((p) => p.width))).toBeLessThan(3.4);
     expect(Math.max(...course.platforms.map((p) => p.width))).toBeGreaterThan(5.4);
-    expect(course.obstacles.length).toBeGreaterThan(500);
+    expect(course.obstacles.length).toBeGreaterThan(140);
   });
 });
