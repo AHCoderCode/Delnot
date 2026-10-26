@@ -28,7 +28,7 @@ const clamp=(value:number,min:number,max:number):number=>Math.min(max,Math.max(m
 export function generateLevelCourse(id:CourseId):CourseSpec{
   const meta=levelDefinition(id),levelIndex=COURSE_IDS.indexOf(id),globalDifficulty=levelIndex/(COURSE_IDS.length-1);
   const targetSeconds=meta.boss?14*60:7*60;
-  const trackLength=meta.boss?9000+(meta.chapter-1)*400:4400+(meta.chapter-1)*160+(meta.level-1)*90;
+  const trackLength=meta.boss?11700+(meta.chapter-1)*900:6300+(meta.chapter-1)*100+(meta.level-1)*50;
   const segmentStep=9.05+globalDifficulty*.55,segmentCount=Math.ceil(trackLength/segmentStep);
   let seed=(0x51a7c0de^Math.imul(meta.chapter,0x45d9f3b)^Math.imul(meta.level,0x119de1f3))>>>0;
   const random=():number=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/0x1_0000_0000;};
